@@ -1,0 +1,156 @@
+# frozen_string_literal: true
+
+# Moves completed downloads to Audiobookshelf library folder and triggers library scan
+class PostProcessingJob < ApplicationJob
+  queue_as :default
+
+  def perform(download_id)
+    download = Download.find_by(id: download_id)
+    return unless download&.completed?
+
+    request = download.request
+    book = request.book
+
+    Rails.logger.info "[PostProcessingJob] Starting post-processing for download #{download.id} (#{book.title})"
+
+    request.update!(status: :processing)
+
+    begin
+      destination = build_destination_path(book, download)
+      source_path = remap_download_path(download.download_path)
+      move_files(source_path, destination)
+
+      book.update!(file_path: destination)
+      request.complete!
+
+      # Pre-create zip for directories (audiobooks) so download is instant
+      pre_create_download_zip(book, destination) if File.directory?(destination)
+
+      trigger_library_scan if AudiobookshelfClient.configured?
+
+      NotificationService.request_completed(request)
+
+      Rails.logger.info "[PostProcessingJob] Completed processing for #{book.title} -> #{destination}"
+    rescue => e
+      Rails.logger.error "[PostProcessingJob] Failed for download #{download.id}: #{e.message}"
+      Rails.logger.error e.backtrace.first(5).join("\n")
+      request.mark_for_attention!("Post-processing failed: #{e.message}")
+      NotificationService.request_attention(request)
+    end
+  end
+
+  private
+
+  def build_destination_path(book, download)
+    base_path = get_base_path(book)
+
+    # Structure: /base/Author Name/Book Title/
+    author_folder = sanitize_filename(book.author.presence || "Unknown Author")
+    title_folder = sanitize_filename(book.title)
+
+    File.join(base_path, author_folder, title_folder)
+  end
+
+  def get_base_path(book)
+    if AudiobookshelfClient.configured? && library_id.present? && book.audiobook?
+      library = AudiobookshelfClient.library(library_id)
+      return library.folder_paths.first if library&.folder_paths&.any?
+    end
+
+    # Return path based on book type
+    if book.ebook?
+      SettingsService.get(:ebook_output_path, default: "/ebooks")
+    else
+      SettingsService.get(:audiobook_output_path, default: "/audiobooks")
+    end
+  end
+
+  def library_id
+    SettingsService.get(:audiobookshelf_library_id)
+  end
+
+  def move_files(source, destination)
+    return unless source.present? && File.exist?(source)
+
+    FileUtils.mkdir_p(destination)
+
+    if File.directory?(source)
+      # Move all files from source directory to destination
+      # Use Dir.entries instead of Dir.glob to avoid pattern matching issues
+      # (e.g., [AUDIOBOOK] in path being treated as character class)
+      Dir.entries(source).reject { |f| f.start_with?(".") }.each do |file|
+        FileUtils.mv(File.join(source, file), destination)
+      end
+      # Remove empty source directory
+      FileUtils.rmdir(source) if Dir.empty?(source)
+    else
+      # Move single file
+      FileUtils.mv(source, destination)
+    end
+  end
+
+  # Remap paths from download client (host) to container paths
+  # SABnzbd returns host paths like /mnt/media/Torrents/Completed/...
+  # Container has this mounted at /downloads/...
+  def remap_download_path(path)
+    return path if path.blank?
+
+    # Get the configured remote path (host path from download client)
+    remote_path = SettingsService.get(:download_remote_path)
+    # Local path is where it's mounted in the container
+    local_path = SettingsService.get(:download_local_path, default: "/downloads")
+
+    if remote_path.present? && path.start_with?(remote_path)
+      path.sub(remote_path, local_path)
+    else
+      path
+    end
+  end
+
+  def sanitize_filename(name)
+    # Remove invalid filename characters, collapse whitespace
+    name
+      .gsub(/[<>:"\/\\|?*]/, "")  # Remove invalid chars
+      .gsub(/[\x00-\x1f]/, "")    # Remove control characters
+      .strip
+      .gsub(/\s+/, " ")           # Collapse whitespace
+      .truncate(100, omission: "") # Limit length
+  end
+
+  def pre_create_download_zip(book, path)
+    require "zip"
+
+    zip_filename = "#{book.author} - #{book.title}.zip".gsub(/[\/\\:*?"<>|]/, "_")
+    safe_filename = zip_filename.gsub(/\s+/, "_")
+
+    downloads_dir = Rails.root.join("tmp", "downloads")
+    FileUtils.mkdir_p(downloads_dir)
+    zip_path = downloads_dir.join("book_#{book.id}_#{safe_filename}")
+
+    Rails.logger.info "[PostProcessingJob] Pre-creating download zip: #{zip_path}"
+
+    Zip::File.open(zip_path.to_s, create: true) do |zipfile|
+      Dir.entries(path).reject { |f| f.start_with?(".") }.each do |file|
+        full_path = File.join(path, file)
+        next if File.directory?(full_path)
+        zipfile.add(file, full_path)
+      end
+    end
+
+    Rails.logger.info "[PostProcessingJob] Download zip ready: #{(File.size(zip_path) / 1024.0 / 1024.0).round(2)} MB"
+  rescue => e
+    Rails.logger.warn "[PostProcessingJob] Failed to pre-create zip (non-fatal): #{e.message}"
+    # Non-fatal - zip will be created on first download
+  end
+
+  def trigger_library_scan
+    lib_id = library_id
+    return unless lib_id.present?
+
+    AudiobookshelfClient.scan_library(lib_id)
+    Rails.logger.info "[PostProcessingJob] Triggered Audiobookshelf library scan"
+  rescue AudiobookshelfClient::Error => e
+    Rails.logger.warn "[PostProcessingJob] Failed to trigger scan: #{e.message}"
+    # Non-fatal - Audiobookshelf will pick up files on next auto-scan
+  end
+end

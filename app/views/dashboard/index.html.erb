@@ -1,0 +1,38 @@
+<div class="mx-auto max-w-4xl">
+  <h1 class="font-bold text-4xl mb-8">Dashboard</h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="text-gray-500 text-sm font-medium">Pending Requests</div>
+      <div class="text-3xl font-bold text-blue-600"><%= @pending_requests %></div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="text-gray-500 text-sm font-medium">Completed</div>
+      <div class="text-3xl font-bold text-green-600"><%= @completed_requests %></div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="text-gray-500 text-sm font-medium">Active Downloads</div>
+      <div class="text-3xl font-bold text-purple-600"><%= @active_downloads %></div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="text-gray-500 text-sm font-medium">System Status</div>
+      <% unhealthy_count = @system_health.values.count { |h| !h.healthy? } %>
+      <div class="text-3xl font-bold <%= unhealthy_count > 0 ? 'text-red-600' : 'text-green-600' %>">
+        <%= unhealthy_count > 0 ? "#{unhealthy_count} Issues" : "Healthy" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="font-bold text-xl mb-4">Quick Actions</h2>
+    <div class="flex flex-wrap gap-4">
+      <% if Current.user&.admin? %>
+        <%= link_to "Manage Users", admin_users_path, class: "rounded-md px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700" %>
+        <%= link_to "Settings", admin_settings_path, class: "rounded-md px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700" %>
+      <% end %>
+    </div>
+  </div>
+</div>

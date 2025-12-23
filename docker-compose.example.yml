@@ -1,0 +1,35 @@
+# Example docker-compose.yml for Shelfarr
+# Copy this file and customize for your setup
+#
+# Quick start:
+#   1. Copy to docker-compose.yml
+#   2. Generate a master key: openssl rand -hex 32
+#   3. Set RAILS_MASTER_KEY in .env or inline
+#   4. Adjust volume paths for your system
+#   5. Run: docker-compose up -d
+
+services:
+  shelfarr:
+    image: ghcr.io/pedro-revez-silva/shelfarr:latest
+    container_name: shelfarr
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      # Database and app storage (required)
+      - ./data:/rails/storage
+      # Audiobooks library
+      - /path/to/audiobooks:/audiobooks
+      # Ebooks library
+      - /path/to/ebooks:/ebooks
+      # Download client completed folder
+      - /path/to/downloads:/downloads
+    environment:
+      - RAILS_MASTER_KEY=${RAILS_MASTER_KEY}
+      - SOLID_QUEUE_IN_PUMA=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/up"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

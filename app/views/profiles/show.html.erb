@@ -1,0 +1,51 @@
+<div class="mx-auto max-w-2xl">
+  <h1 class="font-bold text-4xl mb-8">My Profile</h1>
+
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="p-6">
+      <div class="flex items-center gap-4 mb-6">
+        <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+          <span class="text-2xl font-bold text-gray-500"><%= @user.name.first.upcase %></span>
+        </div>
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900"><%= @user.name %></h2>
+          <p class="text-gray-500">@<%= @user.username %></p>
+          <% if @user.admin? %>
+            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800 mt-1">Admin</span>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="bg-gray-50 rounded-lg p-4 text-center">
+          <p class="text-2xl font-bold text-gray-900"><%= @stats[:total_requests] %></p>
+          <p class="text-sm text-gray-500">Total Requests</p>
+        </div>
+        <div class="bg-green-50 rounded-lg p-4 text-center">
+          <p class="text-2xl font-bold text-green-600"><%= @stats[:completed_requests] %></p>
+          <p class="text-sm text-gray-500">Completed</p>
+        </div>
+        <div class="bg-yellow-50 rounded-lg p-4 text-center">
+          <p class="text-2xl font-bold text-yellow-600"><%= @stats[:pending_requests] %></p>
+          <p class="text-sm text-gray-500">Pending</p>
+        </div>
+      </div>
+
+      <dl class="grid grid-cols-2 gap-4 text-sm border-t pt-6">
+        <div>
+          <dt class="text-gray-500">Member since</dt>
+          <dd class="font-medium text-gray-900"><%= @user.created_at.strftime("%B %d, %Y") %></dd>
+        </div>
+        <div>
+          <dt class="text-gray-500">Username</dt>
+          <dd class="font-medium text-gray-900">@<%= @user.username %></dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="px-6 py-4 bg-gray-50 border-t flex gap-4">
+      <%= link_to "Edit Profile", edit_profile_path, class: "px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition" %>
+      <%= link_to "Change Password", password_profile_path, class: "px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition" %>
+    </div>
+  </div>
+</div>
