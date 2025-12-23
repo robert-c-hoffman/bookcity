@@ -2,8 +2,9 @@ name: CI
 
 on:
   pull_request:
+    branches: [main, master]
   push:
-    branches: [main]
+    branches: [main, master]
 
 jobs:
   test:
@@ -23,10 +24,8 @@ jobs:
           RAILS_ENV: test
         run: bin/rails db:test:prepare test
 
-  # Security scans - non-blocking (informational only)
   security:
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - name: Checkout code
@@ -38,7 +37,7 @@ jobs:
           bundler-cache: true
 
       - name: Scan for security vulnerabilities
-        run: bin/brakeman --no-pager || true
+        run: bin/brakeman --no-pager -w2
 
       - name: Audit gems
-        run: bin/bundler-audit || true
+        run: bin/bundler-audit
