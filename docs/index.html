@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shelfarr - Book Request System for the *arr Ecosystem</title>
+  <meta name="description" content="Self-hosted ebook and audiobook request and management system. The missing piece between Prowlarr and Audiobookshelf.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --bg-card: #1a1a1a;
+      --text: #e5e5e5;
+      --text-muted: #a3a3a3;
+      --accent: #f59e0b;
+      --accent-hover: #d97706;
+      --border: #262626;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Hero */
+    .hero {
+      padding: 80px 0 60px;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 3.5rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .hero h1 span {
+      color: var(--accent);
+    }
+
+    .hero .tagline {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--text-muted);
+    }
+
+    /* Problem */
+    .problem {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .problem h2 {
+      font-size: 1.75rem;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .stack-comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 600px) {
+      .stack-comparison {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .stack {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .stack h3 {
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .stack ul {
+      list-style: none;
+    }
+
+    .stack li {
+      padding: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stack li::before {
+      content: "→";
+      color: var(--accent);
+    }
+
+    .stack .missing {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .stack .missing::before {
+      content: "?";
+      color: #ef4444;
+    }
+
+    .stack .highlight {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .stack .highlight::before {
+      content: "✓";
+    }
+
+    /* Features */
+    .features {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .features h2 {
+      font-size: 1.75rem;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .feature {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .feature h3 {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+    }
+
+    .feature p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    /* Install */
+    .install {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .install h2 {
+      font-size: 1.75rem;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .code-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      overflow-x: auto;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .code-block pre {
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 0.9rem;
+      line-height: 1.8;
+    }
+
+    .code-block .comment {
+      color: var(--text-muted);
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="hero">
+      <h1>📚 <span>Shelfarr</span></h1>
+      <p class="tagline">
+        Self-hosted ebook and audiobook request system for the *arr ecosystem.
+        The missing piece between Prowlarr and Audiobookshelf.
+      </p>
+      <div class="buttons">
+        <a href="https://github.com/Pedro-Revez-Silva/shelfarr" class="btn btn-primary">
+          View on GitHub
+        </a>
+        <a href="https://github.com/Pedro-Revez-Silva/shelfarr#quick-start" class="btn btn-secondary">
+          Quick Start
+        </a>
+      </div>
+    </section>
+
+    <section class="problem">
+      <h2>The Problem</h2>
+      <div class="stack-comparison">
+        <div class="stack">
+          <h3>Video Stack (Complete)</h3>
+          <ul>
+            <li>Jellyseerr / Overseerr</li>
+            <li>Sonarr / Radarr</li>
+            <li>Prowlarr</li>
+            <li>qBittorrent / SABnzbd</li>
+            <li>Jellyfin / Plex</li>
+          </ul>
+        </div>
+        <div class="stack">
+          <h3>Book Stack (Was Incomplete)</h3>
+          <ul>
+            <li class="missing">No request UI</li>
+            <li class="missing">Readarr (ebooks only, buggy)</li>
+            <li>Prowlarr</li>
+            <li>qBittorrent / SABnzbd</li>
+            <li>Audiobookshelf</li>
+            <li class="highlight">Shelfarr fills the gap</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="features">
+      <h2>What It Does</h2>
+      <div class="feature-grid">
+        <div class="feature">
+          <h3>Request UI</h3>
+          <p>Users browse Open Library and request audiobooks or ebooks. Family-friendly interface.</p>
+        </div>
+        <div class="feature">
+          <h3>Acquisition</h3>
+          <p>Searches Prowlarr indexers, selects results, downloads via qBittorrent or SABnzbd.</p>
+        </div>
+        <div class="feature">
+          <h3>Processing</h3>
+          <p>Organizes files by author/title and delivers to Audiobookshelf automatically.</p>
+        </div>
+        <div class="feature">
+          <h3>Multi-user</h3>
+          <p>Role-based access control. Users request, admins manage downloads and settings.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="install">
+      <h2>Quick Start</h2>
+      <div class="code-block">
+<pre><span class="comment"># Create directory and get compose file</span>
+mkdir shelfarr && cd shelfarr
+curl -O https://raw.githubusercontent.com/Pedro-Revez-Silva/shelfarr/main/docker-compose.example.yml
+mv docker-compose.example.yml docker-compose.yml
+
+<span class="comment"># Generate master key</span>
+echo "RAILS_MASTER_KEY=$(openssl rand -hex 32)" > .env
+
+<span class="comment"># Edit paths in docker-compose.yml, then start</span>
+docker-compose up -d</pre>
+      </div>
+    </section>
+
+    <footer>
+      <p>
+        <a href="https://github.com/Pedro-Revez-Silva/shelfarr">GitHub</a> ·
+        <a href="https://github.com/Pedro-Revez-Silva/shelfarr/blob/main/LICENSE">GPL-3.0 License</a>
+      </p>
+    </footer>
+  </div>
+</body>
+</html>
