@@ -13,7 +13,7 @@ services:
     container_name: shelfarr
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "5056:80"
     volumes:
       # Database and app storage (required - contains auto-generated secret key)
       - ./data:/rails/storage

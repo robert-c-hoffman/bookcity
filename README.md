@@ -32,7 +32,7 @@ docker-compose up -d
 
 A secret key is auto-generated on first run and saved to the data volume.
 
-Visit `http://localhost:3000` — the first user to register becomes admin.
+Visit `http://localhost:5056` — the first user to register becomes admin.
 
 ### Configuration
 
