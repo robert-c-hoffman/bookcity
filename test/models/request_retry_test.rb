@@ -430,22 +430,22 @@ class RequestRetryTest < ActiveSupport::TestCase
     assert requests(:failed_request).can_be_cancelled?
   end
 
-  test "can_be_cancelled? returns false for downloading requests" do
+  test "can_be_cancelled? returns true for downloading requests" do
     downloading = Request.create!(
       book: books(:audiobook_acquired),
       user: users(:one),
       status: :downloading
     )
-    assert_not downloading.can_be_cancelled?
+    assert downloading.can_be_cancelled?
   end
 
-  test "can_be_cancelled? returns false for processing requests" do
+  test "can_be_cancelled? returns true for processing requests" do
     processing = Request.create!(
       book: books(:audiobook_acquired),
       user: users(:one),
       status: :processing
     )
-    assert_not processing.can_be_cancelled?
+    assert processing.can_be_cancelled?
   end
 
   test "can_be_cancelled? returns false for completed requests" do
@@ -455,5 +455,29 @@ class RequestRetryTest < ActiveSupport::TestCase
       status: :completed
     )
     assert_not completed.can_be_cancelled?
+  end
+
+  test "cancel! removes active downloads from download client" do
+    book = Book.create!(title: "Cancel Test Book", book_type: :ebook, open_library_work_id: "OL_CANCEL_TEST")
+    request = Request.create!(
+      book: book,
+      user: users(:one),
+      status: :downloading
+    )
+
+    # Create an active download
+    download = request.downloads.create!(
+      name: "Test Download",
+      status: :downloading,
+      external_id: "test-hash-123"
+    )
+
+    request.cancel!
+
+    request.reload
+    download.reload
+
+    assert request.failed?
+    assert download.failed?
   end
 end
