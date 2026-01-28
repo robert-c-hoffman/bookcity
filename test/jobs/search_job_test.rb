@@ -182,6 +182,26 @@ class SearchJobTest < ActiveJob::TestCase
     end
   end
 
+  test "handles unknown language code gracefully" do
+    # Set request language to unknown code
+    @request.update!(language: "xyz")
+
+    VCR.turned_off do
+      # Stub search - unknown language should not be added to query
+      stub_request(:get, %r{localhost:9696/api/v1/search})
+        .with { |req| !req.uri.query_values["query"].include?("xyz") }
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [].to_json
+        )
+
+      assert_nothing_raised do
+        SearchJob.perform_now(@request.id)
+      end
+    end
+  end
+
   private
 
   def stub_prowlarr_search_with_results

@@ -480,4 +480,28 @@ class RequestRetryTest < ActiveSupport::TestCase
     assert request.failed?
     assert download.failed?
   end
+
+  test "cancel! also cancels paused downloads" do
+    book = Book.create!(title: "Paused Cancel Book", book_type: :ebook, open_library_work_id: "OL_PAUSED_CANCEL")
+    request = Request.create!(
+      book: book,
+      user: users(:one),
+      status: :downloading
+    )
+
+    # Create a paused download
+    paused_download = request.downloads.create!(
+      name: "Paused Download",
+      status: :paused,
+      external_id: "paused-hash-123"
+    )
+
+    request.cancel!
+
+    request.reload
+    paused_download.reload
+
+    assert request.failed?
+    assert paused_download.failed?
+  end
 end

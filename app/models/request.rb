@@ -125,8 +125,8 @@ class Request < ApplicationRecord
   # Also cancels any active downloads and removes them from download clients
   def cancel!
     ActiveRecord::Base.transaction do
-      # Cancel active downloads and remove from download clients
-      downloads.active.each do |download|
+      # Cancel active and paused downloads and remove from download clients
+      downloads.where(status: [ :queued, :downloading, :paused ]).each do |download|
         cancel_download(download)
       end
 
@@ -140,7 +140,7 @@ class Request < ApplicationRecord
 
   # Cancel a specific download and remove from download client
   def cancel_download(download)
-    return unless download.active?
+    return unless download.queued? || download.downloading? || download.paused?
 
     # Try to remove from download client if we have an external_id
     if download.external_id.present? && download.download_client.present?

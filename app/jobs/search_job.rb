@@ -217,16 +217,20 @@ class SearchJob < ApplicationJob
   end
 
   # Check if we should add language to the search query
-  # Only add for non-English languages as English is typically the default
+  # Only add for non-English languages that we have a name for
   def should_add_language_to_search?(request)
     language = request.effective_language
-    language.present? && language != "en"
+    return false if language.blank? || language == "en"
+
+    # Only add if we have a known language name
+    info = ReleaseParserService.language_info(language)
+    info.present?
   end
 
   # Get the language name for search query
   def language_search_term(request)
     language = request.effective_language
     info = ReleaseParserService.language_info(language)
-    info ? info[:name] : nil
+    info[:name]
   end
 end
