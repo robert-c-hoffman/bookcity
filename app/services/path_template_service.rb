@@ -88,7 +88,14 @@ class PathTemplateService
       end
 
       # Remove empty placeholders and clean up
-      result = result.gsub(/\s*-\s*$/, "").gsub(/^\s*-\s*/, "").strip
+      result = result
+        .gsub(/\s*\(\s*\)\s*/, " ")     # Remove empty parentheses
+        .gsub(/\s*\[\s*\]\s*/, " ")     # Remove empty brackets
+        .gsub(/\s*-\s*-\s*/, " - ")     # Collapse double dashes
+        .gsub(/\s*-\s*$/, "")           # Remove trailing dashes
+        .gsub(/^\s*-\s*/, "")           # Remove leading dashes
+        .gsub(/\s+/, " ")               # Collapse whitespace
+        .strip
       result = "Unknown" if result.blank?
 
       # Ensure extension starts with a dot

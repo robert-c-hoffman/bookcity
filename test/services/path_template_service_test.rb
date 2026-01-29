@@ -166,6 +166,20 @@ class PathTemplateServiceTest < ActiveSupport::TestCase
     assert_equal "Stephen King - The Shining.epub", result
   end
 
+  test "build_filename handles missing year in parentheses" do
+    @book.update!(year: nil)
+    result = PathTemplateService.build_filename(@book, ".epub", template: "{author} - {title} ({year})")
+    # Empty parentheses should be removed
+    assert_equal "Stephen King - The Shining.epub", result
+  end
+
+  test "build_filename handles missing year in middle of template" do
+    @book.update!(year: nil)
+    result = PathTemplateService.build_filename(@book, ".epub", template: "{author} ({year}) - {title}")
+    # Empty parentheses should be removed
+    assert_equal "Stephen King - The Shining.epub", result
+  end
+
   test "build_filename handles missing author" do
     @book.update!(author: nil)
     result = PathTemplateService.build_filename(@book, ".epub")
