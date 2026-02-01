@@ -120,7 +120,11 @@ class HardcoverClient
       GRAPHQL
 
       response = execute_query(query_string, {})
-      result = response.dig("data", "me", "id").present?
+
+      # Check if we got a valid response with data
+      data = response["data"] if response.is_a?(Hash)
+      me = data["me"] if data.is_a?(Hash)
+      result = me.is_a?(Hash) && me["id"].present?
 
       Rails.logger.info "[HardcoverClient] Connection test: #{result ? 'passed' : 'failed'}"
       result
