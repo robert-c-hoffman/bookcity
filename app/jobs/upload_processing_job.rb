@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
 # Processes uploaded files:
-# 1. Parses filename to extract title/author
-# 2. Searches Open Library for metadata
-# 3. Creates book with proper metadata
-# 4. Renames file and moves to library location
+# 1. Extracts metadata from file (ID3 tags, EPUB OPF, etc.)
+# 2. Falls back to filename parsing if extraction fails
+# 3. Searches metadata sources (Hardcover/OpenLibrary) for enrichment
+# 4. Creates book with proper metadata
+# 5. Renames file and moves to library location
 class UploadProcessingJob < ApplicationJob
   queue_as :default
 
@@ -17,28 +18,38 @@ class UploadProcessingJob < ApplicationJob
     upload.update!(status: :processing)
 
     begin
-      # Step 1: Parse filename for initial title/author guess
+      # Step 1: Extract metadata from the actual file
+      extracted = MetadataExtractorService.extract(upload.file_path)
+
+      if extracted.present?
+        Rails.logger.info "[UploadProcessingJob] Extracted from file: title='#{extracted.title}', author='#{extracted.author}'"
+      end
+
+      # Step 2: Parse filename as fallback
       parsed = FilenameParserService.parse(upload.original_filename)
+      Rails.logger.info "[UploadProcessingJob] Parsed from filename: title='#{parsed.title}', author='#{parsed.author}'"
+
+      # Use extracted metadata if available, otherwise fall back to parsed filename
+      title = extracted.title.presence || parsed.title
+      author = extracted.author.presence || parsed.author
 
       upload.update!(
-        parsed_title: parsed.title,
-        parsed_author: parsed.author,
-        match_confidence: parsed.confidence
+        parsed_title: title,
+        parsed_author: author,
+        match_confidence: extracted.present? ? 90 : parsed.confidence
       )
 
-      Rails.logger.info "[UploadProcessingJob] Parsed: title='#{parsed.title}', author='#{parsed.author}'"
-
-      # Step 2: Determine book type from file extension
+      # Step 3: Determine book type from file extension
       book_type = upload.infer_book_type
       upload.update!(book_type: book_type)
 
-      # Step 3: Search Open Library for proper metadata
-      metadata = fetch_metadata(parsed.title, parsed.author)
+      # Step 4: Search metadata sources for enrichment
+      metadata = fetch_metadata(title, author)
 
       if metadata
-        Rails.logger.info "[UploadProcessingJob] Found metadata: '#{metadata.title}' by #{metadata.author}"
+        Rails.logger.info "[UploadProcessingJob] Found metadata from #{metadata.source}: '#{metadata.title}' by #{metadata.author}"
       else
-        Rails.logger.info "[UploadProcessingJob] No Open Library match, using parsed filename"
+        Rails.logger.info "[UploadProcessingJob] No metadata match, using extracted/parsed data"
       end
 
       # Wrap critical operations in transaction for atomicity
@@ -46,9 +57,10 @@ class UploadProcessingJob < ApplicationJob
       destination = nil
 
       ActiveRecord::Base.transaction do
-        # Step 4: Find or create book with metadata
+        # Step 5: Find or create book with metadata
         book = find_or_create_book_with_metadata(
           metadata: metadata,
+          extracted: extracted,
           parsed: parsed,
           book_type: book_type
         )
@@ -56,10 +68,10 @@ class UploadProcessingJob < ApplicationJob
         upload.update!(book: book)
         Rails.logger.info "[UploadProcessingJob] Associated with book #{book.id}: #{book.display_name}"
 
-        # Step 5: Move and rename file to library location
+        # Step 6: Move and rename file to library location
         destination = move_to_library(upload, book)
 
-        # Step 6: Update book with file path
+        # Step 7: Update book with file path
         book.update!(file_path: destination)
 
         upload.update!(
@@ -68,7 +80,7 @@ class UploadProcessingJob < ApplicationJob
         )
       end
 
-      # Step 7: Trigger Audiobookshelf scan if configured (outside transaction)
+      # Step 8: Trigger Audiobookshelf scan if configured (outside transaction)
       trigger_library_scan(book) if book && AudiobookshelfClient.configured?
 
       Rails.logger.info "[UploadProcessingJob] Completed processing upload #{upload.id}"
@@ -86,14 +98,14 @@ class UploadProcessingJob < ApplicationJob
 
   private
 
-  # Search Open Library and return the best matching result
+  # Search metadata sources and return the best matching result
   def fetch_metadata(title, author)
     return nil if title.blank?
 
     # Build search query - include author if available for better results
     query = author.present? ? "#{title} #{author}" : title
 
-    results = OpenLibraryClient.search(query, limit: 5)
+    results = MetadataService.search(query, limit: 5)
     return nil if results.empty?
 
     # Score results and pick the best match
@@ -102,8 +114,8 @@ class UploadProcessingJob < ApplicationJob
     # Only return if score is reasonable
     score = score_result(best_match, title, author)
     score >= 30 ? best_match : nil
-  rescue OpenLibraryClient::Error => e
-    Rails.logger.warn "[UploadProcessingJob] Open Library search failed: #{e.message}"
+  rescue HardcoverClient::Error, OpenLibraryClient::Error, MetadataService::Error => e
+    Rails.logger.warn "[UploadProcessingJob] Metadata search failed: #{e.message}"
     nil
   end
 
@@ -148,17 +160,18 @@ class UploadProcessingJob < ApplicationJob
     (0..padded.length - 3).map { |i| padded[i, 3] }.to_set
   end
 
-  def find_or_create_book_with_metadata(metadata:, parsed:, book_type:)
-    # Use metadata if available, otherwise fall back to parsed filename
-    title = metadata&.title || parsed.title
-    author = metadata&.author || parsed.author
+  def find_or_create_book_with_metadata(metadata:, extracted:, parsed:, book_type:)
+    # Priority: online metadata > extracted file metadata > parsed filename
+    title = metadata&.title || extracted&.title || parsed.title
+    author = metadata&.author || extracted&.author || parsed.author
     work_id = metadata&.work_id
-    cover_url = metadata&.cover_url(size: :l)
-    year = metadata&.first_publish_year
+    cover_url = metadata&.cover_url
+    year = metadata&.year || extracted&.year
+    description = metadata&.description || extracted&.description
 
     # Check for existing book with same work_id and type
     if work_id.present?
-      existing = Book.find_by(open_library_work_id: work_id, book_type: book_type)
+      existing = Book.find_by_work_id(work_id, book_type: book_type)
       return existing if existing
     end
 
@@ -167,14 +180,29 @@ class UploadProcessingJob < ApplicationJob
     return result.book if result.exact? || result.fuzzy?
 
     # Create new book with metadata
-    Book.create!(
-      title: title,
-      author: author,
-      book_type: book_type,
-      open_library_work_id: work_id,
-      cover_url: cover_url,
-      year: year
-    )
+    if work_id.present?
+      source, _source_id = Book.parse_work_id(work_id)
+      book = Book.find_or_initialize_by_work_id(work_id, book_type: book_type)
+      book.assign_attributes(
+        title: title,
+        author: author,
+        cover_url: cover_url,
+        year: year,
+        description: description,
+        metadata_source: source
+      )
+      book.save!
+      book
+    else
+      Book.create!(
+        title: title,
+        author: author,
+        book_type: book_type,
+        cover_url: cover_url,
+        year: year,
+        description: description
+      )
+    end
   end
 
   def move_to_library(upload, book)
