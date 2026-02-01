@@ -61,11 +61,20 @@ class HardcoverClient
       GRAPHQL
 
       response = execute_query(query_string, { query: query, perPage: limit })
+
+      # Debug: log full response structure to understand format
+      Rails.logger.info "[HardcoverClient] Response keys: #{response.keys rescue 'not a hash'}"
+      Rails.logger.info "[HardcoverClient] Search data: #{response.dig('data', 'search')&.keys rescue 'not accessible'}"
+
       results = response.dig("data", "search", "results") || []
 
       Rails.logger.info "[HardcoverClient] Search '#{query}' returned #{results.size} results"
+      if results.any?
+        Rails.logger.info "[HardcoverClient] First result class: #{results.first.class}"
+        Rails.logger.info "[HardcoverClient] First result: #{results.first.inspect[0..500]}"
+      end
 
-      results.map { |result| parse_search_result(result) }
+      results.filter_map { |result| parse_search_result(result) }
     end
 
     # Get book details by Hardcover book ID
@@ -196,16 +205,25 @@ class HardcoverClient
     end
 
     def parse_search_result(result)
-      # Search results come from Typesense with slightly different format
+      # Handle different result formats from Hardcover API
+      # The search results may come as a hash with a "document" key or directly
+      unless result.is_a?(Hash)
+        Rails.logger.warn "[HardcoverClient] Unexpected result format: #{result.class} - #{result.inspect[0..200]}"
+        return nil
+      end
+
+      # Extract the actual document data
+      doc = result["document"] || result
+
       SearchResult.new(
-        id: result["id"]&.to_s || result["document"]&.dig("id")&.to_s,
-        title: result["title"] || result["document"]&.dig("title"),
+        id: doc["id"]&.to_s,
+        title: doc["title"],
         author: extract_author_from_result(result),
-        description: result["description"] || result["document"]&.dig("description"),
-        release_year: result["release_year"] || result["document"]&.dig("release_year"),
-        cover_url: result["cached_image"] || result["image"] || result["document"]&.dig("cached_image"),
-        has_audiobook: result["has_audiobook"] || result["document"]&.dig("has_audiobook") || false,
-        has_ebook: result["has_ebook"] || result["document"]&.dig("has_ebook") || false
+        description: doc["description"],
+        release_year: doc["release_year"],
+        cover_url: doc["cached_image"] || doc["image"],
+        has_audiobook: doc["has_audiobook"] || false,
+        has_ebook: doc["has_ebook"] || false
       )
     end
 
