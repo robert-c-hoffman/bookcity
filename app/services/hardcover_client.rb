@@ -120,6 +120,7 @@ class HardcoverClient
       GRAPHQL
 
       response = execute_query(query_string, {})
+      Rails.logger.info "[HardcoverClient] Test response: #{response.inspect}"
 
       # Check if we got a valid response with data
       data = response["data"] if response.is_a?(Hash)
