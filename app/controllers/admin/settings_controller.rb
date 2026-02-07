@@ -138,6 +138,7 @@ module Admin
       respond_with_flash(alert: "Audiobookshelf error: #{e.message}")
     end
 
+    # FlareSolverr is not tracked in SystemHealth::SERVICES, so no SystemHealth sync here
     def test_flaresolverr
       unless FlaresolverrClient.configured?
         respond_with_flash(alert: "FlareSolverr URL is not configured.")

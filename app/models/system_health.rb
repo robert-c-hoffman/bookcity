@@ -15,7 +15,7 @@ class SystemHealth < ApplicationRecord
 
   def self.for_service(service_name)
     find_or_create_by(service: service_name) do |health|
-      health.status = :healthy
+      health.status = :not_configured
     end
   end
 
