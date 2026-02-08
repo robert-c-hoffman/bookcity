@@ -14,6 +14,14 @@ module Admin
       redirect_to admin_root_path, notice: update_notice
     end
 
+    def run_health_check
+      HealthCheckJob.perform_later
+      redirect_to admin_root_path, notice: "Health check started. Results will appear shortly."
+    rescue => e
+      Rails.logger.error "[DashboardController] Health check failed: #{e.message}\n#{e.backtrace&.first(5)&.join("\n")}"
+      redirect_to admin_root_path, alert: "Health check failed. Check logs for details."
+    end
+
     private
 
     def update_notice
