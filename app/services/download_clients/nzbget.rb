@@ -238,7 +238,10 @@ module DownloadClients
 
     def normalize_download_path(url)
       url = url.presence || ""
-      url.to_s.sub(/\.\#[^\/]+$/, "")
+      # Remove NZBGet's .#<category> suffix from paths
+      url = url.to_s.sub(/\.\#[^\/]+$/, "")
+      # Normalize backslashes to forward slashes for Windows compatibility
+      url.tr("\\", "/")
     end
   end
 end
