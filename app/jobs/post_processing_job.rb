@@ -132,12 +132,19 @@ class PostProcessingJob < ApplicationJob
       return path
     end
 
+    # Normalize backslashes to forward slashes first
+    # This handles cases where qBittorrent on Windows returns paths like C:\Downloads\file.epub
+    path = path.tr("\\", "/")
+
     Rails.logger.info "[PostProcessingJob] Path remapping - original path from download client: #{path}"
 
     # Try global settings first - these do proper prefix replacement
     # which preserves the full path structure (including category subfolders)
     remote_path = SettingsService.get(:download_remote_path)
     local_path = SettingsService.get(:download_local_path, default: "/downloads")
+
+    # Normalize remote_path to handle mixed separators
+    remote_path = remote_path&.tr("\\", "/")
 
     if remote_path.present? && path.start_with?(remote_path)
       remapped = path.sub(remote_path, local_path)

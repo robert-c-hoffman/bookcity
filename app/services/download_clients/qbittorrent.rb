@@ -349,6 +349,11 @@ module DownloadClients
         data["save_path"]
       end
 
+      # Normalize backslashes to forward slashes
+      # qBittorrent on Windows returns paths like C:\Downloads\file.epub
+      # which need to be normalized to C:/Downloads/file.epub for Docker/Linux compatibility
+      download_path = download_path&.tr("\\", "/")
+
       Base::TorrentInfo.new(
         hash: data["hash"],
         name: data["name"],

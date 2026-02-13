@@ -163,7 +163,7 @@ module DownloadClients
         progress: data["percentage"].to_i,
         state: normalize_queue_state(data["status"]),
         size_bytes: (data["mb"].to_f * 1024 * 1024).to_i,
-        download_path: data["storage"].presence || ""
+        download_path: (data["storage"].presence || "").tr("\\", "/")
       )
     end
 
@@ -174,7 +174,7 @@ module DownloadClients
         progress: 100,
         state: normalize_history_state(data["status"]),
         size_bytes: data["bytes"].to_i,
-        download_path: data["storage"].presence || ""
+        download_path: (data["storage"].presence || "").tr("\\", "/")
       )
     end
 
