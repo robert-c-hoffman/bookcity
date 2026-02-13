@@ -287,6 +287,61 @@ class PostProcessingJobTest < ActiveJob::TestCase
     assert_match /source path not found/i, @request.issue_description
   end
 
+  test "normalizes backslashes in paths from Windows qBittorrent clients" do
+    # Create a subdirectory with a nested structure to simulate the Windows path
+    download_subdir = File.join(@temp_source, "Complete", "Test Audiobook")
+    FileUtils.mkdir_p(download_subdir)
+    File.write(File.join(download_subdir, "audiobook.mp3"), "test audio content")
+
+    # Simulate path from Windows qBittorrent with backslashes
+    # This represents the path as it would come from qBittorrent: C:\Downloads\Complete\Test Audiobook
+    @download.update!(download_path: "C:\\Downloads\\Complete\\Test Audiobook")
+
+    # Configure global path remapping to convert Windows path to Docker path
+    # Remote path uses backslashes (Windows), local path uses forward slashes (Docker/Linux)
+    SettingsService.set(:download_remote_path, "C:\\Downloads")
+    SettingsService.set(:download_local_path, @temp_source)
+    SettingsService.set(:audiobookshelf_url, "")
+    SettingsService.set(:audiobook_output_path, @temp_dest_base)
+
+    PostProcessingJob.perform_now(@download.id)
+
+    # File should be copied successfully despite mixed separators
+    expected_dest = File.join(@temp_dest_base, @book.author, @book.title)
+    assert File.exist?(File.join(expected_dest, "audiobook.mp3")), "File should be copied even with backslash paths"
+  end
+
+  test "normalizes mixed path separators when using client-specific download path" do
+    # Create a subdirectory with nested structure
+    download_subdir = File.join(@temp_source, "subfolder", "Test Audiobook")
+    FileUtils.mkdir_p(download_subdir)
+    File.write(File.join(download_subdir, "audiobook.mp3"), "test audio content")
+
+    # Create a download client
+    client = DownloadClient.create!(
+      name: "Test Client",
+      client_type: :qbittorrent,
+      url: "http://localhost:8080",
+      download_path: @temp_source
+    )
+
+    # Path from Windows qBittorrent with backslashes - e.g., C:\torrents\subfolder\Test Audiobook
+    # The basename extraction should handle this correctly
+    @download.update!(
+      download_client: client,
+      download_path: "C:\\torrents\\subfolder\\Test Audiobook"
+    )
+
+    SettingsService.set(:audiobookshelf_url, "")
+    SettingsService.set(:audiobook_output_path, @temp_dest_base)
+
+    PostProcessingJob.perform_now(@download.id)
+
+    # File should be copied to destination
+    expected_dest = File.join(@temp_dest_base, @book.author, @book.title)
+    assert File.exist?(File.join(expected_dest, "audiobook.mp3")), "File should be copied with normalized path"
+  end
+
   private
 
   def stub_audiobookshelf_library(base_path)

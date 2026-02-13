@@ -221,6 +221,80 @@ class DownloadClients::QbittorrentTest < ActiveSupport::TestCase
     end
   end
 
+  test "parse_torrent normalizes Windows-style backslashes to forward slashes" do
+    VCR.turned_off do
+      # Stub authentication
+      stub_request(:post, "http://localhost:8080/api/v2/auth/login")
+        .to_return(
+          status: 200,
+          headers: { "Set-Cookie" => "SID=test_session_id; path=/" },
+          body: "Ok."
+        )
+
+      # Simulate qBittorrent on Windows returning paths with backslashes
+      stub_request(:get, "http://localhost:8080/api/v2/torrents/info")
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [
+            {
+              "hash" => "abc123def456",
+              "name" => "Windows Torrent",
+              "progress" => 1.0,
+              "state" => "uploading",
+              "size" => 1073741824,
+              "content_path" => "C:\\Downloads\\Complete\\Windows Torrent"
+            }
+          ].to_json
+        )
+
+      torrents = @client.list_torrents
+
+      assert_equal 1, torrents.size
+      torrent = torrents.first
+      # Path should be normalized to forward slashes
+      assert_equal "C:/Downloads/Complete/Windows Torrent", torrent.download_path
+      assert_not_includes torrent.download_path, "\\", "Path should not contain backslashes"
+    end
+  end
+
+  test "parse_torrent normalizes backslashes in save_path fallback" do
+    VCR.turned_off do
+      # Stub authentication
+      stub_request(:post, "http://localhost:8080/api/v2/auth/login")
+        .to_return(
+          status: 200,
+          headers: { "Set-Cookie" => "SID=test_session_id; path=/" },
+          body: "Ok."
+        )
+
+      # Simulate qBittorrent on Windows with save_path fallback
+      stub_request(:get, "http://localhost:8080/api/v2/torrents/info")
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [
+            {
+              "hash" => "def456abc789",
+              "name" => "Fallback Test",
+              "progress" => 0.5,
+              "state" => "downloading",
+              "size" => 2048,
+              "save_path" => "D:\\Torrents\\Category"
+            }
+          ].to_json
+        )
+
+      torrents = @client.list_torrents
+
+      assert_equal 1, torrents.size
+      torrent = torrents.first
+      # Path should be normalized even when using save_path + name fallback
+      assert_equal "D:/Torrents/Category/Fallback Test", torrent.download_path
+      assert_not_includes torrent.download_path, "\\", "Path should not contain backslashes"
+    end
+  end
+
   # === Hash Extraction Tests (Race Condition Fix) ===
 
   test "add_torrent extracts hash from downloaded torrent file" do
