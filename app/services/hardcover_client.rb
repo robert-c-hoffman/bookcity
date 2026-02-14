@@ -232,9 +232,9 @@ class HardcoverClient
         author: extract_author_from_result(result),
         description: doc["description"],
         release_year: doc["release_year"],
-        cover_url: extract_cover_url(doc),
-        has_audiobook: doc["has_audiobook"] || false,
-        has_ebook: doc["has_ebook"] || false
+        cover_url: extract_cover_url_from_result(result),
+        has_audiobook: extract_has_audiobook(result),
+        has_ebook: extract_has_ebook(result)
       )
     end
 
@@ -246,18 +246,37 @@ class HardcoverClient
         result["document"]&.dig("author")
     end
 
-    def extract_cover_url(doc)
-      # Handle both string URLs and JSON object formats for cached_image
-      cached_image = doc["cached_image"] || doc["image"]
+    def extract_cover_url_from_result(result)
+      # Try different possible locations for the cover image
+      # Check at result level first, then in document
+      doc = result["document"] || result
+      
+      cached_image = result["cached_image"] || 
+                     result["image"] ||
+                     doc["cached_image"] || 
+                     doc["image"]
+      
       return nil if cached_image.blank?
 
-      # If it's a hash/JSON object, extract the URL
+      # Handle both string URLs and JSON object formats for cached_image
       if cached_image.is_a?(Hash)
         cached_image["url"] || cached_image[:url]
       else
         # Otherwise it's already a string URL
         cached_image
       end
+    end
+
+    def extract_has_audiobook(result)
+      # Check at result level first, then in document
+      doc = result["document"] || result
+      result["has_audiobook"] || doc["has_audiobook"] || false
+    end
+
+    def extract_has_ebook(result)
+      # Check at result level first, then in document
+      doc = result["document"] || result
+      result["has_ebook"] || doc["has_ebook"] || false
     end
 
     def parse_book_details(book)
@@ -270,19 +289,35 @@ class HardcoverClient
       # Extract pages from default edition
       pages = book.dig("default_physical_edition", "pages")
 
+      # Extract cover URL directly from book data
+      cover_url = extract_cover_url_from_book(book)
+
       BookDetails.new(
         id: book["id"].to_s,
         title: book["title"],
         author: author,
         description: book["description"],
         release_year: book["release_year"],
-        cover_url: extract_cover_url(book),
+        cover_url: cover_url,
         has_audiobook: false, # Not available in this query
         has_ebook: false,     # Not available in this query
         pages: pages,
         genres: [],           # Would need separate query
         series_name: series_name
       )
+    end
+
+    def extract_cover_url_from_book(book)
+      # For book details API calls (not search results)
+      cached_image = book["cached_image"] || book["image"]
+      return nil if cached_image.blank?
+
+      # Handle both string URLs and JSON object formats
+      if cached_image.is_a?(Hash)
+        cached_image["url"] || cached_image[:url]
+      else
+        cached_image
+      end
     end
   end
 end
