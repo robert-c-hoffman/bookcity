@@ -138,7 +138,7 @@ export default class extends Controller {
     }
   }
 
-  async refresh() {
+  refresh() {
     this.refreshing = true
     
     // Show indicator in refreshing state
@@ -159,7 +159,7 @@ export default class extends Controller {
     if (!this.indicator) return
     
     this.pulling = false
-    this.refreshing = false
+    // Don't reset refreshing flag here - only reset it in connect() after page reload
     this.indicator.style.transform = "translateY(-60px)"
     
     const icon = this.indicator.querySelector(".refresh-icon")
