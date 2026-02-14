@@ -69,6 +69,34 @@ class HardcoverClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "search handles real-world API response structure with hits" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      # Simulate the exact structure from the logs with multiple books in hits
+      stub_hardcover_search("Roverpowered", [
+        { "document" => {
+          "id" => 123, "title" => "Roverpowered", "author_names" => [ "Drew Hayes" ],
+          "release_year" => 2020, "cached_image" => "https://example.com/cover.jpg",
+          "has_audiobook" => true, "has_ebook" => true
+        } },
+        { "document" => {
+          "id" => 456, "title" => "Roverpowered 2", "author_names" => [ "Drew Hayes" ],
+          "release_year" => 2021, "cached_image" => "https://example.com/cover2.jpg",
+          "has_audiobook" => true, "has_ebook" => false
+        } }
+      ])
+
+      results = HardcoverClient.search("Roverpowered")
+
+      assert_kind_of Array, results
+      assert_equal 2, results.size
+      assert_equal "Roverpowered", results.first.title
+      assert_equal "Drew Hayes", results.first.author
+      assert_equal "Roverpowered 2", results.last.title
+    end
+  end
+
   test "book returns BookDetails" do
     SettingsService.set(:hardcover_api_token, "test_token")
 
