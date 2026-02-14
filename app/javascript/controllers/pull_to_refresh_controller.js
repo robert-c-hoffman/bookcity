@@ -16,6 +16,12 @@ export default class extends Controller {
       return
     }
 
+    // Respect user's motion preferences
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (prefersReducedMotion) {
+      return
+    }
+
     this.startY = 0
     this.currentY = 0
     this.pulling = false
@@ -41,6 +47,10 @@ export default class extends Controller {
       this.element.removeEventListener("touchmove", this.boundTouchMove)
       this.element.removeEventListener("touchend", this.boundTouchEnd)
     }
+    
+    // Reset body transform when disconnecting
+    document.body.style.transform = ''
+    document.body.style.transition = ''
     
     // Don't remove indicator as it may be used by other pages during Turbo navigation
   }
@@ -107,9 +117,18 @@ export default class extends Controller {
         event.preventDefault()
       }
       
-      // Update indicator position
-      const translateY = Math.min(pullDistance - this.constructor.INDICATOR_HEIGHT, 0)
+      // Apply resistance to pull distance for a more natural feel
+      const resistance = 0.5
+      const adjustedPullDistance = pullDistance * resistance
+      
+      // Move the body content down (iOS-style)
+      document.body.style.transform = `translateY(${adjustedPullDistance}px)`
+      document.body.style.transition = 'none'
+      
+      // Update indicator position - now it moves with the body
+      const translateY = Math.min(adjustedPullDistance - this.constructor.INDICATOR_HEIGHT, 0)
       this.indicator.style.transform = `translateY(${translateY}px)`
+      this.indicator.style.transition = 'none'
       
       // Rotate the refresh icon based on pull distance
       const rotation = Math.min((pullDistance / this.thresholdValue) * this.constructor.MAX_ROTATION_DEGREES, this.constructor.MAX_ROTATION_DEGREES)
@@ -163,7 +182,17 @@ export default class extends Controller {
     
     this.pulling = false
     // Don't reset refreshing flag here - only reset it in connect() after page reload
-    this.indicator.style.transform = `translateY(-${this.constructor.INDICATOR_HEIGHT}px)`
+    
+    // Use requestAnimationFrame to ensure smooth transition
+    requestAnimationFrame(() => {
+      // Reset body transform with smooth transition
+      document.body.style.transition = 'transform 0.3s ease'
+      document.body.style.transform = 'translateY(0px)'
+      
+      // Reset indicator position with smooth transition
+      this.indicator.style.transition = 'transform 0.3s ease'
+      this.indicator.style.transform = `translateY(-${this.constructor.INDICATOR_HEIGHT}px)`
+    })
     
     const icon = this.indicator.querySelector(".refresh-icon")
     if (icon) {
