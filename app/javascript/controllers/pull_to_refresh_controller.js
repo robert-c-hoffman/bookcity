@@ -150,7 +150,6 @@ export default class extends Controller {
     icon.style.animation = "spin 1s linear infinite"
     
     // Use Turbo to reload the current page
-    // Note: Turbo.visit is synchronous and will reload the page immediately
     // The controller will reconnect on the new page, and connect() will reset the state
     Turbo.visit(window.location.href, { action: "replace" })
   }
