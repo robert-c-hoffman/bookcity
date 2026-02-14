@@ -287,6 +287,70 @@ class HardcoverClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "search handles fields at result level instead of document" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      # Real-world API may return some fields at result level, not nested in document
+      stub_hardcover_search("test", [
+        {
+          "cached_image" => "https://example.com/result-level-cover.jpg",
+          "has_audiobook" => true,
+          "has_ebook" => true,
+          "author_names" => [ "Result Level Author" ],
+          "document" => {
+            "id" => 789,
+            "title" => "Result Level Book",
+            "release_year" => 2024
+          }
+        }
+      ])
+
+      results = HardcoverClient.search("test")
+
+      assert_kind_of Array, results
+      assert_equal 1, results.size
+      result = results.first
+      assert_equal "Result Level Book", result.title
+      assert_equal "Result Level Author", result.author
+      assert_equal "https://example.com/result-level-cover.jpg", result.cover_url
+      assert result.has_audiobook
+      assert result.has_ebook
+    end
+  end
+
+  test "search handles mixed result and document fields" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      # Some fields at result level, some in document - prefers result level
+      stub_hardcover_search("test", [
+        {
+          "cached_image" => "https://example.com/result-cover.jpg",
+          "has_audiobook" => true,
+          "document" => {
+            "id" => 999,
+            "title" => "Mixed Level Book",
+            "author_names" => [ "Mixed Author" ],
+            "release_year" => 2025,
+            "cached_image" => "https://example.com/document-cover.jpg",
+            "has_ebook" => false
+          }
+        }
+      ])
+
+      results = HardcoverClient.search("test")
+
+      assert_kind_of Array, results
+      assert_equal 1, results.size
+      result = results.first
+      # Should prefer result level over document level
+      assert_equal "https://example.com/result-cover.jpg", result.cover_url
+      assert result.has_audiobook
+      assert_not result.has_ebook
+    end
+  end
+
   private
 
   def stub_hardcover_search(query, results)
