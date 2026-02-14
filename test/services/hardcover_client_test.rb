@@ -259,6 +259,34 @@ class HardcoverClientTest < ActiveSupport::TestCase
     assert_equal "hardcover:12345", result.work_id
   end
 
+  test "search handles cached_image as JSON object" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      stub_hardcover_search("test", [
+        { "document" => {
+          "id" => 456,
+          "title" => "Test Book",
+          "author_names" => [ "Test Author" ],
+          "release_year" => 2023,
+          "cached_image" => { "url" => "https://example.com/cover.jpg", "width" => 512, "height" => 768 },
+          "has_audiobook" => true,
+          "has_ebook" => false
+        } }
+      ])
+
+      results = HardcoverClient.search("test")
+
+      assert_kind_of Array, results
+      assert_equal 1, results.size
+      result = results.first
+      assert_equal "Test Book", result.title
+      assert_equal "https://example.com/cover.jpg", result.cover_url
+      assert result.has_audiobook
+      assert_not result.has_ebook
+    end
+  end
+
   private
 
   def stub_hardcover_search(query, results)
