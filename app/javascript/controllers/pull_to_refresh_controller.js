@@ -6,6 +6,10 @@ export default class extends Controller {
     threshold: { type: Number, default: 80 }
   }
 
+  // Constants for visual feedback
+  static INDICATOR_HEIGHT = 60
+  static MAX_ROTATION_DEGREES = 180
+
   connect() {
     // Only enable on touch devices
     if (!('ontouchstart' in window)) {
@@ -63,11 +67,11 @@ export default class extends Controller {
         top: 0;
         left: 0;
         right: 0;
-        height: 60px;
+        height: ${this.constructor.INDICATOR_HEIGHT}px;
         display: flex;
         align-items: center;
         justify-content: center;
-        transform: translateY(-60px);
+        transform: translateY(-${this.constructor.INDICATOR_HEIGHT}px);
         transition: transform 0.3s ease;
         z-index: 40;
         pointer-events: none;
@@ -104,11 +108,11 @@ export default class extends Controller {
       }
       
       // Update indicator position
-      const translateY = Math.min(pullDistance - 60, 0)
+      const translateY = Math.min(pullDistance - this.constructor.INDICATOR_HEIGHT, 0)
       this.indicator.style.transform = `translateY(${translateY}px)`
       
       // Rotate the refresh icon based on pull distance
-      const rotation = Math.min((pullDistance / this.thresholdValue) * 180, 180)
+      const rotation = Math.min((pullDistance / this.thresholdValue) * this.constructor.MAX_ROTATION_DEGREES, this.constructor.MAX_ROTATION_DEGREES)
       const icon = this.indicator.querySelector(".refresh-icon")
       icon.style.transform = `rotate(${rotation}deg)`
       
@@ -159,7 +163,7 @@ export default class extends Controller {
     
     this.pulling = false
     // Don't reset refreshing flag here - only reset it in connect() after page reload
-    this.indicator.style.transform = "translateY(-60px)"
+    this.indicator.style.transform = `translateY(-${this.constructor.INDICATOR_HEIGHT}px)`
     
     const icon = this.indicator.querySelector(".refresh-icon")
     if (icon) {
