@@ -97,6 +97,63 @@ class HardcoverClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "search handles legacy array response format" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      # Simulate legacy format where results is an array directly
+      stub_request(:post, HardcoverClient::BASE_URL)
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            "data" => {
+              "search" => {
+                "results" => [
+                  { "document" => {
+                    "id" => 789, "title" => "Legacy Book", "author_names" => [ "Legacy Author" ],
+                    "release_year" => 2019, "cached_image" => "https://example.com/legacy.jpg",
+                    "has_audiobook" => false, "has_ebook" => true
+                  } }
+                ]
+              }
+            }
+          }.to_json
+        )
+
+      results = HardcoverClient.search("Legacy")
+
+      assert_kind_of Array, results
+      assert_equal 1, results.size
+      assert_equal "Legacy Book", results.first.title
+    end
+  end
+
+  test "search handles unexpected response format gracefully" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      # Simulate unexpected format (string instead of hash or array)
+      stub_request(:post, HardcoverClient::BASE_URL)
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            "data" => {
+              "search" => {
+                "results" => "unexpected string"
+              }
+            }
+          }.to_json
+        )
+
+      results = HardcoverClient.search("Unexpected")
+
+      assert_kind_of Array, results
+      assert_equal 0, results.size
+    end
+  end
+
   test "book returns BookDetails" do
     SettingsService.set(:hardcover_api_token, "test_token")
 
