@@ -16,6 +16,12 @@ export default class extends Controller {
       return
     }
 
+    // Respect user's motion preferences
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (prefersReducedMotion) {
+      return
+    }
+
     this.startY = 0
     this.currentY = 0
     this.pulling = false
@@ -177,13 +183,16 @@ export default class extends Controller {
     this.pulling = false
     // Don't reset refreshing flag here - only reset it in connect() after page reload
     
-    // Reset body transform with smooth transition
-    document.body.style.transition = 'transform 0.3s ease'
-    document.body.style.transform = 'translateY(0px)'
-    
-    // Reset indicator position with smooth transition
-    this.indicator.style.transition = 'transform 0.3s ease'
-    this.indicator.style.transform = `translateY(-${this.constructor.INDICATOR_HEIGHT}px)`
+    // Use requestAnimationFrame to ensure smooth transition
+    requestAnimationFrame(() => {
+      // Reset body transform with smooth transition
+      document.body.style.transition = 'transform 0.3s ease'
+      document.body.style.transform = 'translateY(0px)'
+      
+      // Reset indicator position with smooth transition
+      this.indicator.style.transition = 'transform 0.3s ease'
+      this.indicator.style.transform = `translateY(-${this.constructor.INDICATOR_HEIGHT}px)`
+    })
     
     const icon = this.indicator.querySelector(".refresh-icon")
     if (icon) {
