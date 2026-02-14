@@ -36,9 +36,11 @@ class HardcoverClientTest < ActiveSupport::TestCase
 
     VCR.turned_off do
       stub_hardcover_search("lord of the rings", [
-        { "id" => 123, "title" => "The Lord of the Rings", "author_names" => [ "J.R.R. Tolkien" ],
+        { "document" => {
+          "id" => 123, "title" => "The Lord of the Rings", "author_names" => [ "J.R.R. Tolkien" ],
           "release_year" => 1954, "cached_image" => "https://example.com/cover.jpg",
-          "has_audiobook" => true, "has_ebook" => true }
+          "has_audiobook" => true, "has_ebook" => true
+        } }
       ])
 
       results = HardcoverClient.search("lord of the rings")
@@ -64,6 +66,91 @@ class HardcoverClientTest < ActiveSupport::TestCase
 
       results = HardcoverClient.search("asdfghjklqwertyuiop")
       assert_equal [], results
+    end
+  end
+
+  test "search handles real-world API response structure with hits" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      # Simulate the exact structure from the logs with multiple books in hits
+      stub_hardcover_search("Roverpowered", [
+        { "document" => {
+          "id" => 123, "title" => "Roverpowered", "author_names" => [ "Drew Hayes" ],
+          "release_year" => 2020, "cached_image" => "https://example.com/cover.jpg",
+          "has_audiobook" => true, "has_ebook" => true
+        } },
+        { "document" => {
+          "id" => 456, "title" => "Roverpowered 2", "author_names" => [ "Drew Hayes" ],
+          "release_year" => 2021, "cached_image" => "https://example.com/cover2.jpg",
+          "has_audiobook" => true, "has_ebook" => false
+        } }
+      ])
+
+      results = HardcoverClient.search("Roverpowered")
+
+      assert_kind_of Array, results
+      assert_equal 2, results.size
+      assert_equal "Roverpowered", results.first.title
+      assert_equal "Drew Hayes", results.first.author
+      assert_equal "Roverpowered 2", results.last.title
+    end
+  end
+
+  test "search handles legacy array response format" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      # Simulate legacy format where results is an array directly
+      stub_request(:post, HardcoverClient::BASE_URL)
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            "data" => {
+              "search" => {
+                "results" => [
+                  { "document" => {
+                    "id" => 789, "title" => "Legacy Book", "author_names" => [ "Legacy Author" ],
+                    "release_year" => 2019, "cached_image" => "https://example.com/legacy.jpg",
+                    "has_audiobook" => false, "has_ebook" => true
+                  } }
+                ]
+              }
+            }
+          }.to_json
+        )
+
+      results = HardcoverClient.search("Legacy")
+
+      assert_kind_of Array, results
+      assert_equal 1, results.size
+      assert_equal "Legacy Book", results.first.title
+    end
+  end
+
+  test "search handles unexpected response format gracefully" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      # Simulate unexpected format (string instead of hash or array)
+      stub_request(:post, HardcoverClient::BASE_URL)
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            "data" => {
+              "search" => {
+                "results" => "unexpected string"
+              }
+            }
+          }.to_json
+        )
+
+      results = HardcoverClient.search("Unexpected")
+
+      assert_kind_of Array, results
+      assert_equal 0, results.size
     end
   end
 
@@ -175,11 +262,23 @@ class HardcoverClientTest < ActiveSupport::TestCase
   private
 
   def stub_hardcover_search(query, results)
+    # Hardcover API returns results as a hash with metadata, not just an array
+    results_hash = {
+      "hits" => results,
+      "found" => results.size,
+      "page" => 1,
+      "out_of" => 2229375, # Total number of books in the database
+      "facet_counts" => [],
+      "search_time_ms" => 1,
+      "search_cutoff" => false,
+      "request_params" => { "q" => query, "per_page" => 10 }
+    }
+
     stub_request(:post, HardcoverClient::BASE_URL)
       .to_return(
         status: 200,
         headers: { "Content-Type" => "application/json" },
-        body: { "data" => { "search" => { "results" => results } } }.to_json
+        body: { "data" => { "search" => { "results" => results_hash } } }.to_json
       )
   end
 
