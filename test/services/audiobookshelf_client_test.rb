@@ -14,16 +14,25 @@ class AudiobookshelfClientTest < ActiveSupport::TestCase
   end
 
   test "configured? returns true when properly configured" do
+    SettingsService.set(:audiobookshelf_audiobook_library_id, "lib-123")
     assert AudiobookshelfClient.configured?
   end
 
   test "configured? returns false when url is missing" do
+    SettingsService.set(:audiobookshelf_audiobook_library_id, "lib-123")
     SettingsService.set(:audiobookshelf_url, "")
     assert_not AudiobookshelfClient.configured?
   end
 
   test "configured? returns false when api_key is missing" do
+    SettingsService.set(:audiobookshelf_audiobook_library_id, "lib-123")
     SettingsService.set(:audiobookshelf_api_key, "")
+    assert_not AudiobookshelfClient.configured?
+  end
+
+  test "configured? returns false when no library IDs are set" do
+    SettingsService.set(:audiobookshelf_audiobook_library_id, "")
+    SettingsService.set(:audiobookshelf_ebook_library_id, "")
     assert_not AudiobookshelfClient.configured?
   end
 

@@ -185,7 +185,10 @@ class SettingsService
     end
 
     def audiobookshelf_configured?
-      configured?(:audiobookshelf_url) && configured?(:audiobookshelf_api_key)
+      return false unless configured?(:audiobookshelf_url) && configured?(:audiobookshelf_api_key)
+      
+      # At least one library ID must be configured for scans to work
+      configured?(:audiobookshelf_audiobook_library_id) || configured?(:audiobookshelf_ebook_library_id)
     end
 
     def anna_archive_configured?
