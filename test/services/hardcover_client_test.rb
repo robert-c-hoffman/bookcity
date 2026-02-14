@@ -36,9 +36,11 @@ class HardcoverClientTest < ActiveSupport::TestCase
 
     VCR.turned_off do
       stub_hardcover_search("lord of the rings", [
-        { "id" => 123, "title" => "The Lord of the Rings", "author_names" => [ "J.R.R. Tolkien" ],
+        { "document" => {
+          "id" => 123, "title" => "The Lord of the Rings", "author_names" => [ "J.R.R. Tolkien" ],
           "release_year" => 1954, "cached_image" => "https://example.com/cover.jpg",
-          "has_audiobook" => true, "has_ebook" => true }
+          "has_audiobook" => true, "has_ebook" => true
+        } }
       ])
 
       results = HardcoverClient.search("lord of the rings")
@@ -175,11 +177,23 @@ class HardcoverClientTest < ActiveSupport::TestCase
   private
 
   def stub_hardcover_search(query, results)
+    # Hardcover API returns results as a hash with metadata, not just an array
+    results_hash = {
+      "hits" => results,
+      "found" => results.size,
+      "page" => 1,
+      "out_of" => results.size,
+      "facet_counts" => [],
+      "search_time_ms" => 1,
+      "search_cutoff" => false,
+      "request_params" => { "q" => query, "per_page" => 10 }
+    }
+    
     stub_request(:post, HardcoverClient::BASE_URL)
       .to_return(
         status: 200,
         headers: { "Content-Type" => "application/json" },
-        body: { "data" => { "search" => { "results" => results } } }.to_json
+        body: { "data" => { "search" => { "results" => results_hash } } }.to_json
       )
   end
 

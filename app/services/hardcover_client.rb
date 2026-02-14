@@ -66,15 +66,26 @@ class HardcoverClient
       Rails.logger.info "[HardcoverClient] Response keys: #{response.keys rescue 'not a hash'}"
       Rails.logger.info "[HardcoverClient] Search data: #{response.dig('data', 'search')&.keys rescue 'not accessible'}"
 
-      results = response.dig("data", "search", "results") || []
+      search_data = response.dig("data", "search", "results") || {}
 
-      Rails.logger.info "[HardcoverClient] Search '#{query}' returned #{results.size} results"
-      if results.any?
-        Rails.logger.info "[HardcoverClient] First result class: #{results.first.class}"
-        Rails.logger.info "[HardcoverClient] First result: #{results.first.inspect[0..500]}"
+      # The Hardcover API returns results as a hash with metadata
+      # The actual book hits are in the "hits" key
+      hits = if search_data.is_a?(Hash)
+        search_data["hits"] || []
+      elsif search_data.is_a?(Array)
+        # Legacy support if API changes back to returning array directly
+        search_data
+      else
+        []
       end
 
-      results.filter_map { |result| parse_search_result(result) }
+      Rails.logger.info "[HardcoverClient] Search '#{query}' returned #{hits.size} results"
+      if hits.any?
+        Rails.logger.info "[HardcoverClient] First result class: #{hits.first.class}"
+        Rails.logger.info "[HardcoverClient] First result: #{hits.first.inspect[0..500]}"
+      end
+
+      hits.filter_map { |result| parse_search_result(result) }
     end
 
     # Get book details by Hardcover book ID
