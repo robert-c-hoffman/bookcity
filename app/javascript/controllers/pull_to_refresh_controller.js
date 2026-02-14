@@ -15,6 +15,7 @@ export default class extends Controller {
     this.startY = 0
     this.currentY = 0
     this.pulling = false
+    // Reset refreshing flag in case we're reconnecting after a refresh
     this.refreshing = false
     
     // Create refresh indicator (reuse if it already exists)
@@ -148,20 +149,17 @@ export default class extends Controller {
     const icon = this.indicator.querySelector(".refresh-icon")
     icon.style.animation = "spin 1s linear infinite"
     
-    try {
-      // Use Turbo to reload the current page
-      await Turbo.visit(window.location.href, { action: "replace" })
-    } catch (error) {
-      console.error("Refresh failed:", error)
-      // Fallback to regular reload if Turbo fails
-      window.location.reload()
-    }
+    // Use Turbo to reload the current page
+    // Note: Turbo.visit is synchronous and will reload the page immediately
+    // The controller will reconnect on the new page, and connect() will reset the state
+    Turbo.visit(window.location.href, { action: "replace" })
   }
 
   reset() {
     if (!this.indicator) return
     
     this.pulling = false
+    this.refreshing = false
     this.indicator.style.transform = "translateY(-60px)"
     
     const icon = this.indicator.querySelector(".refresh-icon")
@@ -176,9 +174,5 @@ export default class extends Controller {
       text.classList.remove("text-blue-400")
       text.classList.add("text-gray-400")
     }
-    
-    setTimeout(() => {
-      this.refreshing = false
-    }, 300)
   }
 }
