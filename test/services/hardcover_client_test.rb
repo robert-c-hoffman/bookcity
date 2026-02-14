@@ -267,13 +267,13 @@ class HardcoverClientTest < ActiveSupport::TestCase
       "hits" => results,
       "found" => results.size,
       "page" => 1,
-      "out_of" => results.size,
+      "out_of" => 2229375, # Total number of books in the database
       "facet_counts" => [],
       "search_time_ms" => 1,
       "search_cutoff" => false,
       "request_params" => { "q" => query, "per_page" => 10 }
     }
-    
+
     stub_request(:post, HardcoverClient::BASE_URL)
       .to_return(
         status: 200,
