@@ -149,6 +149,25 @@ class PostProcessingJobTest < ActiveJob::TestCase
     end
   end
 
+  test "skips scan when library ID is not configured" do
+    VCR.turned_off do
+      stub_audiobookshelf_library(@temp_dest_base)
+      scan_stub = stub_audiobookshelf_scan
+      
+      # Clear the library ID to simulate misconfiguration
+      SettingsService.set(:audiobookshelf_audiobook_library_id, "")
+
+      PostProcessingJob.perform_now(@download.id)
+
+      # Scan should not be triggered
+      assert_not_requested scan_stub
+      
+      # Request should still complete successfully
+      @request.reload
+      assert @request.completed?
+    end
+  end
+
   test "continues without error if audiobookshelf scan fails" do
     VCR.turned_off do
       stub_audiobookshelf_library(@temp_dest_base)

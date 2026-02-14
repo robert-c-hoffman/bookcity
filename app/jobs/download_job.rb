@@ -197,7 +197,10 @@ class DownloadJob < ApplicationJob
       SettingsService.get(:audiobookshelf_ebook_library_id)
     end
 
-    return unless lib_id.present?
+    unless lib_id.present?
+      Rails.logger.warn "[DownloadJob] Skipping Audiobookshelf scan: no library ID configured for #{book.book_type}. Configure audiobookshelf_#{book.book_type}_library_id in Settings."
+      return
+    end
 
     AudiobookshelfClient.scan_library(lib_id)
     Rails.logger.info "[DownloadJob] Triggered Audiobookshelf library scan for #{book.book_type}"

@@ -209,7 +209,11 @@ class PostProcessingJob < ApplicationJob
 
   def trigger_library_scan(book)
     lib_id = library_id_for(book)
-    return unless lib_id.present?
+    
+    unless lib_id.present?
+      Rails.logger.warn "[PostProcessingJob] Skipping Audiobookshelf scan: no library ID configured for #{book.book_type}. Configure audiobookshelf_#{book.book_type}_library_id in Settings."
+      return
+    end
 
     AudiobookshelfClient.scan_library(lib_id)
     Rails.logger.info "[PostProcessingJob] Triggered Audiobookshelf library scan for #{book.book_type}"
