@@ -232,7 +232,7 @@ class HardcoverClient
         author: extract_author_from_result(result),
         description: doc["description"],
         release_year: doc["release_year"],
-        cover_url: doc["cached_image"] || doc["image"],
+        cover_url: extract_cover_url(doc),
         has_audiobook: doc["has_audiobook"] || false,
         has_ebook: doc["has_ebook"] || false
       )
@@ -244,6 +244,20 @@ class HardcoverClient
         result["document"]&.dig("author_names")&.first ||
         result["author"] ||
         result["document"]&.dig("author")
+    end
+
+    def extract_cover_url(doc)
+      # Handle both string URLs and JSON object formats for cached_image
+      cached_image = doc["cached_image"] || doc["image"]
+      return nil if cached_image.blank?
+
+      # If it's a hash/JSON object, extract the URL
+      if cached_image.is_a?(Hash)
+        cached_image["url"] || cached_image[:url]
+      else
+        # Otherwise it's already a string URL
+        cached_image
+      end
     end
 
     def parse_book_details(book)
@@ -262,7 +276,7 @@ class HardcoverClient
         author: author,
         description: book["description"],
         release_year: book["release_year"],
-        cover_url: book["cached_image"],
+        cover_url: extract_cover_url(book),
         has_audiobook: false, # Not available in this query
         has_ebook: false,     # Not available in this query
         pages: pages,

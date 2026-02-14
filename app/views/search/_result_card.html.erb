@@ -18,6 +18,12 @@
   else
     :available
   end
+
+  # Check if the format is available according to the metadata source
+  # For OpenLibrary (has_audiobook/has_ebook are nil), allow both formats
+  # For Hardcover, only show button if the API says it's available
+  audiobook_available = result.has_audiobook.nil? || result.has_audiobook
+  ebook_available = result.has_ebook.nil? || result.has_ebook
 %>
 
 <div class="group relative rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.03] bg-gray-900 ring-1 ring-gray-800">
@@ -84,7 +90,7 @@
     <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
       <%# Request Buttons %>
       <div class="flex flex-col gap-2">
-        <% if audiobook_status == :available %>
+        <% if audiobook_status == :available && audiobook_available %>
           <%= link_to new_request_path(
             work_id: result.work_id,
             title: result.title,
@@ -100,7 +106,7 @@
           <% end %>
         <% end %>
 
-        <% if ebook_status == :available %>
+        <% if ebook_status == :available && ebook_available %>
           <%= link_to new_request_path(
             work_id: result.work_id,
             title: result.title,
@@ -116,12 +122,14 @@
           <% end %>
         <% end %>
 
-        <% if audiobook_status != :available && ebook_status != :available %>
+        <% if (audiobook_status != :available || !audiobook_available) && (ebook_status != :available || !ebook_available) %>
           <div class="text-center text-sm text-gray-300 py-2">
             <% if audiobook_status == :acquired || ebook_status == :acquired %>
               Already in library
-            <% else %>
+            <% elsif audiobook_status == :requested || ebook_status == :requested %>
               Request pending
+            <% else %>
+              No formats available
             <% end %>
           </div>
         <% end %>
