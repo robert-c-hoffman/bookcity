@@ -248,13 +248,11 @@ class HardcoverClient
 
     def extract_cover_url_from_result(result)
       # Try different possible locations for the cover image
-      # Check at result level first, then in document
-      doc = result["document"] || result
-      
+      # Check at result level first, then in document if it exists
       cached_image = result["cached_image"] || 
                      result["image"] ||
-                     doc["cached_image"] || 
-                     doc["image"]
+                     result.dig("document", "cached_image") ||
+                     result.dig("document", "image")
       
       return nil if cached_image.blank?
 
@@ -268,15 +266,13 @@ class HardcoverClient
     end
 
     def extract_has_audiobook(result)
-      # Check at result level first, then in document
-      doc = result["document"] || result
-      result["has_audiobook"] || doc["has_audiobook"] || false
+      # Check at result level first, then in document if it exists
+      result["has_audiobook"] || result.dig("document", "has_audiobook") || false
     end
 
     def extract_has_ebook(result)
-      # Check at result level first, then in document
-      doc = result["document"] || result
-      result["has_ebook"] || doc["has_ebook"] || false
+      # Check at result level first, then in document if it exists
+      result["has_ebook"] || result.dig("document", "has_ebook") || false
     end
 
     def parse_book_details(book)
