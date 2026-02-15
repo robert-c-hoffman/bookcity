@@ -123,7 +123,7 @@ class ProfilesController < ApplicationController
   end
 
   def profile_params
-    params.require(:user).permit(:name)
+    params.require(:user).permit(:name, :timezone)
   end
 
   def password_params

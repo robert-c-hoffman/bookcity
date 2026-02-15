@@ -29,6 +29,15 @@
         <p class="text-xs text-gray-500 mt-1">Username cannot be changed.</p>
       </div>
 
+      <div class="mb-6">
+        <%= form.label :timezone, class: "block text-sm font-medium text-gray-300 mb-2" %>
+        <%= form.select :timezone, 
+            ActiveSupport::TimeZone.all.map { |tz| [tz.to_s, tz.name] },
+            { include_blank: "Select timezone" },
+            class: "w-full px-4 py-2 border border-gray-700 bg-gray-800 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" %>
+        <p class="text-xs text-gray-500 mt-1">Choose your local timezone for displaying times.</p>
+      </div>
+
       <div class="flex gap-4">
         <%= form.submit "Save Changes", class: "px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition cursor-pointer" %>
         <%= link_to "Cancel", profile_path, class: "px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition" %>

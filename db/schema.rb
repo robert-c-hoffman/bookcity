@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_08_005649) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_15_014700) do
   create_table "activity_logs", force: :cascade do |t|
     t.string "action", null: false
     t.string "controller"
@@ -222,6 +222,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_08_005649) do
     t.string "otp_secret"
     t.string "password_digest", null: false
     t.integer "role", default: 0, null: false
+    t.string "timezone", default: "UTC"
     t.datetime "updated_at", null: false
     t.string "username", null: false
     t.index ["oidc_uid"], name: "index_users_on_oidc_uid"

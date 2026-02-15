@@ -49,7 +49,7 @@
           <% @logs.each do |log| %>
             <tr class="hover:bg-gray-800/50 transition">
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <%= log.created_at.strftime("%b %d, %H:%M") %>
+                <%= local_time(log.created_at, :compact) %>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-white">
                 <%= log.user&.name || "System" %>

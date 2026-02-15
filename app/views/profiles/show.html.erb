@@ -34,11 +34,15 @@
       <dl class="grid grid-cols-2 gap-4 text-sm border-t border-gray-700 pt-6">
         <div>
           <dt class="text-gray-500">Member since</dt>
-          <dd class="font-medium text-gray-200"><%= @user.created_at.strftime("%B %d, %Y") %></dd>
+          <dd class="font-medium text-gray-200"><%= local_time(@user.created_at, :short) %></dd>
         </div>
         <div>
           <dt class="text-gray-500">Username</dt>
           <dd class="font-medium text-gray-200">@<%= @user.username %></dd>
+        </div>
+        <div>
+          <dt class="text-gray-500">Timezone</dt>
+          <dd class="font-medium text-gray-200"><%= @user.timezone || "UTC" %></dd>
         </div>
         <div>
           <dt class="text-gray-500">Two-Factor Authentication</dt>

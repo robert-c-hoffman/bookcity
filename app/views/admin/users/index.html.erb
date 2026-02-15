@@ -27,7 +27,7 @@
                 <%= user.role.titleize %>
               </span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm"><%= user.created_at.strftime("%b %d, %Y") %></td>
+            <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-sm"><%= local_time(user.created_at, :short) %></td>
             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
               <%= link_to "Edit", edit_admin_user_path(user), class: "text-blue-400 hover:text-blue-300 mr-4" %>
               <% unless user == Current.user %>
