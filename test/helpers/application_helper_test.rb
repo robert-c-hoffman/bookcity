@@ -11,9 +11,9 @@ class ApplicationHelperTest < ActionView::TestCase
     time = Time.zone.parse("2024-01-15 12:00:00 UTC")
     result = local_time(time, :long)
     
-    # Result should include EST/EDT timezone indicator
+    # Result should include timezone indicator (EST or EDT)
     assert_includes result, "January 15, 2024"
-    assert_includes result, ["EST", "EDT"] # Timezone abbreviation
+    assert(result.include?("EST") || result.include?("EDT"), "Result should include timezone abbreviation")
   end
 
   test "local_time defaults to UTC when user has no timezone" do
