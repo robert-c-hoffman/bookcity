@@ -36,6 +36,7 @@
 - **Auto-Processing** — Organizes files by author/title and delivers to Audiobookshelf
 - **Library Sync** — Automatic library scans after downloads complete
 - **Multi-User** — Role-based access with user requests and admin controls
+- **Timezone Support** — Localized time display based on user timezone preferences
 - **Two-Factor Auth** — TOTP-based 2FA with backup codes
 - **OIDC/SSO** — Single sign-on via OpenID Connect (Authentik, Authelia, Keycloak, etc.)
 - **Notifications** — In-app notifications when your books are ready
