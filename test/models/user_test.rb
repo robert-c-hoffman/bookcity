@@ -78,4 +78,20 @@ class UserTest < ActiveSupport::TestCase
     assert_nil user.locked_until
     assert_nil user.last_failed_login_ip
   end
+
+  test "timezone defaults to UTC" do
+    user = User.create!(name: "Test", username: "test_tz", password: VALID_PASSWORD)
+    assert_equal "UTC", user.timezone
+  end
+
+  test "allows valid timezone" do
+    user = User.new(name: "Test", username: "test_tz", password: VALID_PASSWORD, timezone: "America/New_York")
+    assert user.valid?
+  end
+
+  test "rejects invalid timezone" do
+    user = User.new(name: "Test", username: "test_tz", password: VALID_PASSWORD, timezone: "Invalid/Timezone")
+    assert_not user.valid?
+    assert user.errors[:timezone].any?
+  end
 end
