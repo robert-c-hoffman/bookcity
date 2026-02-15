@@ -45,14 +45,14 @@ export default class extends Controller {
 
   handleTouchStart(event) {
     // Only allow pull-to-refresh when at the top of the page
-    if (window.scrollY === 0 && !this.refreshing) {
+    if (window.scrollY === 0 && !this.refreshing && event.touches?.length > 0) {
       this.startY = event.touches[0].clientY
       this.pulling = false
     }
   }
 
   handleTouchMove(event) {
-    if (this.refreshing) return
+    if (this.refreshing || !event.touches?.length) return
     
     this.currentY = event.touches[0].clientY
     const pullDistance = this.currentY - this.startY
