@@ -49,10 +49,17 @@ export default class extends Controller {
       this.element.removeEventListener("touchend", this.boundTouchEnd)
     }
     
-    // Clean up indicator and reset styles
+    // Cancel any pending animation frames
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId)
+    }
+    
+    // Clean up indicator
     if (this.indicator) {
       this.indicator.remove()
     }
+    
+    // Reset body styles
     document.body.style.transform = ''
     document.body.style.transition = ''
   }
@@ -105,20 +112,27 @@ export default class extends Controller {
         this.constructor.MAX_PULL
       )
       
-      // Translate the body content down (iOS-style elastic pull)
-      document.body.style.transform = `translateY(${resistedPull}px)`
-      document.body.style.transition = 'none'
-      
-      // Show and animate the spinner
-      const opacity = Math.min(resistedPull / this.thresholdValue, 1)
-      this.indicator.style.opacity = opacity
-      this.indicator.style.transform = `translateY(${resistedPull - 30}px)`
-      this.indicator.style.transition = 'none'
-      
-      // Rotate spinner based on pull distance (iOS-like behavior)
-      const spinner = this.indicator.querySelector('.ios-spinner')
-      const rotation = (resistedPull / this.thresholdValue) * 360
-      spinner.style.transform = `rotate(${rotation}deg)`
+      // Use requestAnimationFrame to batch DOM updates for better performance
+      if (!this.rafId) {
+        this.rafId = requestAnimationFrame(() => {
+          // Translate the body content down (iOS-style elastic pull)
+          document.body.style.transform = `translateY(${resistedPull}px)`
+          document.body.style.transition = 'none'
+          
+          // Show and animate the spinner
+          const opacity = Math.min(resistedPull / this.thresholdValue, 1)
+          this.indicator.style.opacity = opacity
+          this.indicator.style.transform = `translateY(${resistedPull - 30}px)`
+          this.indicator.style.transition = 'none'
+          
+          // Rotate spinner based on pull distance (iOS-like behavior)
+          const spinner = this.indicator.querySelector('.ios-spinner')
+          const rotation = (resistedPull / this.thresholdValue) * 360
+          spinner.style.transform = `rotate(${rotation}deg)`
+          
+          this.rafId = null
+        })
+      }
     }
   }
 
@@ -172,6 +186,7 @@ export default class extends Controller {
     this.indicator.style.transform = 'translateY(-100%)'
     
     const spinner = this.indicator.querySelector('.ios-spinner')
+    spinner.style.transition = 'transform 0.3s ease-out'
     spinner.style.transform = 'rotate(0deg)'
   }
 }
