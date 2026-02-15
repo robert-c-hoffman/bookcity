@@ -53,6 +53,11 @@
               <% if Current.user&.admin? %>
                 <%= link_to "Admin", admin_root_path, class: "text-gray-400 hover:text-white transition text-sm sm:text-base" %>
               <% end %>
+              <%= link_to request.path, class: "text-gray-400 hover:text-white transition flex-shrink-0", title: "Refresh page", data: { turbo_action: "replace" } do %>
+                <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              <% end %>
               <% unread_count = Current.user&.notifications&.unread&.count || 0 %>
               <%= link_to notifications_path, class: "relative text-gray-400 hover:text-white transition flex-shrink-0", title: "Notifications" do %>
                 <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
