@@ -26,9 +26,9 @@ class RegistrationsController < ApplicationController
 
   def user_params
     if Current.user&.admin?
-      params.require(:user).permit(:name, :username, :password, :password_confirmation, :role)
+      params.require(:user).permit(:name, :username, :password, :password_confirmation, :role, :timezone)
     else
-      params.require(:user).permit(:name, :username, :password, :password_confirmation)
+      params.require(:user).permit(:name, :username, :password, :password_confirmation, :timezone)
     end
   end
 

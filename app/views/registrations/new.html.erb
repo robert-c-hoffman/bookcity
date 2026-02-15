@@ -4,7 +4,7 @@
     <p class="text-gray-400 mt-2">You'll be the first user and will have admin privileges.</p>
   <% end %>
 
-  <%= form_with model: @user, url: sign_up_path, class: "contents" do |form| %>
+  <%= form_with model: @user, url: sign_up_path, class: "contents", data: { controller: "timezone" } do |form| %>
     <% if @user.errors.any? %>
       <div class="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 font-medium rounded-lg mt-3">
         <h2><%= pluralize(@user.errors.count, "error") %> prohibited this user from being saved:</h2>
@@ -15,6 +15,9 @@
         </ul>
       </div>
     <% end %>
+
+    <%# Hidden timezone field that will be auto-populated by JavaScript %>
+    <%= form.hidden_field :timezone, data: { timezone_target: "select" } %>
 
     <div class="my-5">
       <%= form.label :name, class: "block text-gray-300 font-medium" %>

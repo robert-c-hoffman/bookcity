@@ -116,12 +116,12 @@
         <% end %>
         <div>
           <dt class="text-gray-500">Requested</dt>
-          <dd class="font-medium text-white"><%= @request.created_at.strftime("%B %d, %Y at %I:%M %p") %></dd>
+          <dd class="font-medium text-white"><%= local_time(@request.created_at, :datetime) %></dd>
         </div>
         <% if @request.completed_at.present? %>
           <div>
             <dt class="text-gray-500">Completed</dt>
-            <dd class="font-medium text-white"><%= @request.completed_at.strftime("%B %d, %Y at %I:%M %p") %></dd>
+            <dd class="font-medium text-white"><%= local_time(@request.completed_at, :datetime) %></dd>
           </div>
         <% end %>
         <% if @request.retry_count > 0 %>

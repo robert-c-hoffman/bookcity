@@ -11,6 +11,8 @@ class User < ApplicationRecord
 
   enum :role, { user: 0, admin: 1 }, default: :user
 
+  validates :timezone, inclusion: { in: ActiveSupport::TimeZone.all.map(&:name), allow_nil: true }
+
   normalizes :username, with: ->(u) { u.strip.downcase }
 
   validates :username, presence: true, uniqueness: true,
