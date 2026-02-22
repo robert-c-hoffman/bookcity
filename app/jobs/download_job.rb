@@ -3,10 +3,14 @@
 class DownloadJob < ApplicationJob
   queue_as :default
 
-  def perform(download_id)
+  MAX_ADD_RETRIES = 5
+
+  def perform(download_id, add_retry_count = 0)
     download = Download.find_by(id: download_id)
     return unless download
     return unless download.queued?
+
+    @add_retry_count = add_retry_count
 
     Rails.logger.info "[DownloadJob] Starting download ##{download.id} for request ##{download.request.id}"
 
@@ -230,9 +234,7 @@ class DownloadJob < ApplicationJob
       )
       Rails.logger.info "[DownloadJob] Successfully added torrent for download ##{download.id}, hash: #{torrent_hash}"
     else
-      download.update!(status: :failed)
-      download.request.mark_for_attention!("Failed to add to #{client_record.name}")
-      Rails.logger.error "[DownloadJob] Failed to add download ##{download.id}"
+      handle_add_failure(download, client_record.name)
     end
   end
 
@@ -279,9 +281,19 @@ class DownloadJob < ApplicationJob
       )
       Rails.logger.info "[DownloadJob] Successfully added #{download.download_type} for download ##{download.id}, external_id: #{external_id}"
     else
+      handle_add_failure(download, client_record.name)
+    end
+  end
+
+  def handle_add_failure(download, client_name)
+    if @add_retry_count < MAX_ADD_RETRIES
+      Rails.logger.warn "[DownloadJob] Failed to add download ##{download.id} to #{client_name}. " \
+                        "Retry #{@add_retry_count + 1}/#{MAX_ADD_RETRIES} in 1 minute."
+      DownloadJob.set(wait: 1.minute).perform_later(download.id, @add_retry_count + 1)
+    else
       download.update!(status: :failed)
-      download.request.mark_for_attention!("Failed to add to #{client_record.name}")
-      Rails.logger.error "[DownloadJob] Failed to add download ##{download.id}"
+      download.request.mark_for_attention!("Failed to add to #{client_name}")
+      Rails.logger.error "[DownloadJob] Failed to add download ##{download.id} after #{MAX_ADD_RETRIES} retries"
     end
   end
 
@@ -300,5 +312,4 @@ class DownloadJob < ApplicationJob
                          "This indicates a potential race condition that should be investigated."
     end
   end
-
 end

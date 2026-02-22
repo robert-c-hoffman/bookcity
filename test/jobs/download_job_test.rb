@@ -163,6 +163,54 @@ class DownloadJobTest < ActiveJob::TestCase
     assert filename.end_with?(".epub") || filename.end_with?(".pdf") || filename.end_with?(".mobi")
   end
 
+  test "retries after 1 minute when add_torrent fails and retry count is below max" do
+    VCR.turned_off do
+      stub_qbittorrent_failure
+
+      assert_enqueued_with(job: DownloadJob, args: [ @download.id, 1 ], at: ->(scheduled_at) { scheduled_at >= Time.current + 59.seconds }) do
+        DownloadJob.perform_now(@download.id, 0)
+      end
+
+      @download.reload
+      @request.reload
+
+      # Download should remain queued for retry
+      assert @download.queued?
+      # Request should NOT be marked for attention yet
+      assert_not @request.attention_needed?
+    end
+  end
+
+  test "increments retry count on each successive failure" do
+    VCR.turned_off do
+      stub_qbittorrent_failure
+
+      assert_enqueued_with(job: DownloadJob, args: [ @download.id, 3 ], at: ->(scheduled_at) { scheduled_at >= Time.current + 59.seconds }) do
+        DownloadJob.perform_now(@download.id, 2)
+      end
+
+      @download.reload
+      @request.reload
+
+      assert @download.queued?
+      assert_not @request.attention_needed?
+    end
+  end
+
+  test "marks for attention when add_torrent fails after max retries" do
+    VCR.turned_off do
+      stub_qbittorrent_failure
+
+      DownloadJob.perform_now(@download.id, DownloadJob::MAX_ADD_RETRIES)
+      @download.reload
+      @request.reload
+
+      assert @download.failed?
+      assert @request.attention_needed?
+      assert_includes @request.issue_description, "Failed to add to"
+    end
+  end
+
   private
 
   def stub_qbittorrent_success
@@ -199,7 +247,33 @@ class DownloadJobTest < ActiveJob::TestCase
       .to_return(
         status: 200,
         headers: { "Content-Type" => "application/json" },
-        body: [{ "hash" => expected_hash, "name" => "Test Torrent", "progress" => 0, "state" => "downloading", "size" => 1000, "content_path" => "/downloads/Test Torrent" }].to_json
+        body: [ { "hash" => expected_hash, "name" => "Test Torrent", "progress" => 0, "state" => "downloading", "size" => 1000, "content_path" => "/downloads/Test Torrent" } ].to_json
       )
+  end
+
+  def stub_qbittorrent_failure
+    # Create a valid torrent file so pre-computation works
+    info_dict = {
+      "name" => "Test Torrent",
+      "piece length" => 16384,
+      "pieces" => "x" * 20,
+      "length" => 1000
+    }
+    torrent_data = { "info" => info_dict }.bencode
+
+    # Stub torrent file download (used for hash extraction)
+    stub_request(:get, "http://example.com/download/test.torrent")
+      .to_return(
+        status: 200,
+        headers: { "Content-Type" => "application/x-bittorrent" },
+        body: torrent_data
+      )
+
+    # Stub authentication and version endpoint
+    stub_qbittorrent_connection("http://localhost:8080")
+
+    # Stub add torrent to return failure
+    stub_request(:post, "http://localhost:8080/api/v2/torrents/add")
+      .to_return(status: 200, body: "Fails.")
   end
 end
