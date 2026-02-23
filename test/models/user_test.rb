@@ -94,4 +94,41 @@ class UserTest < ActiveSupport::TestCase
     assert_not user.valid?
     assert user.errors[:timezone].any?
   end
+
+  # Backup code security tests
+  test "verify_backup_code succeeds with valid code" do
+    user = users(:one)
+    user.update!(otp_secret: ROTP::Base32.random, otp_required: true)
+    codes = user.generate_backup_codes!
+
+    assert user.verify_backup_code(codes.first)
+  end
+
+  test "verify_backup_code fails with invalid code" do
+    user = users(:one)
+    user.update!(otp_secret: ROTP::Base32.random, otp_required: true)
+    user.generate_backup_codes!
+
+    assert_not user.verify_backup_code("INVALIDCODE")
+  end
+
+  test "verify_backup_code removes used code (one-time use)" do
+    user = users(:one)
+    user.update!(otp_secret: ROTP::Base32.random, otp_required: true)
+    codes = user.generate_backup_codes!
+    initial_count = user.backup_codes_remaining
+
+    user.verify_backup_code(codes.first)
+
+    assert_equal initial_count - 1, user.reload.backup_codes_remaining
+  end
+
+  test "verify_backup_code cannot reuse a consumed code" do
+    user = users(:one)
+    user.update!(otp_secret: ROTP::Base32.random, otp_required: true)
+    codes = user.generate_backup_codes!
+
+    assert user.verify_backup_code(codes.first)
+    assert_not user.verify_backup_code(codes.first)
+  end
 end

@@ -111,4 +111,29 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to verify_otp_session_path
     assert_nil cookies[:session_id]
   end
+
+  test "after_authentication_url uses stored same-origin return path" do
+    # Simulate visiting a protected page before login
+    get root_path
+    assert_redirected_to new_session_path
+
+    # Log in
+    post session_path, params: { username: @user.username, password: FIXTURE_PASSWORD }
+
+    # Should redirect to the originally requested same-origin URL
+    assert_redirected_to root_url
+  end
+
+  test "after_authentication_url falls back to root for external URLs" do
+    # Make an initial request to establish a session
+    get new_session_path
+
+    # Inject a cross-origin URL into the session to simulate host-header injection
+    session[:return_to_after_authenticating] = "http://evil.example.com/steal"
+
+    post session_path, params: { username: @user.username, password: FIXTURE_PASSWORD }
+
+    # Must NOT redirect to the external domain
+    assert_redirected_to root_url
+  end
 end
