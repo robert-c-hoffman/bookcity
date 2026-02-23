@@ -59,7 +59,7 @@ module Authentication
 
       # Prevent open redirect: only allow relative paths or same-origin URLs
       uri = URI.parse(stored_url)
-      if uri.host.nil? || uri.host == request.host
+      if uri.host.nil? || (uri.host == request.host && uri.port == request.port)
         stored_url
       else
         root_url
