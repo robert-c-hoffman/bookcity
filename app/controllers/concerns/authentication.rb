@@ -54,7 +54,18 @@ module Authentication
     end
 
     def after_authentication_url
-      session.delete(:return_to_after_authenticating) || root_url
+      stored_url = session.delete(:return_to_after_authenticating)
+      return root_url unless stored_url.present?
+
+      # Prevent open redirect: only allow relative paths or same-origin URLs
+      uri = URI.parse(stored_url)
+      if uri.host.nil? || (uri.host == request.host && uri.port == request.port)
+        stored_url
+      else
+        root_url
+      end
+    rescue URI::InvalidURIError
+      root_url
     end
 
     def start_new_session_for(user)

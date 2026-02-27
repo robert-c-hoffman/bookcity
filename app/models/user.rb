@@ -122,9 +122,14 @@ class User < ApplicationRecord
     hashed_input = Digest::SHA256.hexdigest(code.to_s.upcase.gsub(/\s/, ""))
     remaining_codes = backup_codes.split(",")
 
-    if remaining_codes.include?(hashed_input)
+    # Use constant-time comparison to prevent timing attacks
+    matched_code = remaining_codes.find do |stored|
+      ActiveSupport::SecurityUtils.secure_compare(stored, hashed_input)
+    end
+
+    if matched_code
       # Remove used code (one-time use)
-      remaining_codes.delete(hashed_input)
+      remaining_codes.delete(matched_code)
       update!(backup_codes: remaining_codes.any? ? remaining_codes.join(",") : nil)
       Rails.logger.info "[Security] Backup code used for user '#{username}'"
       true
