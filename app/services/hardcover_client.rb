@@ -50,7 +50,8 @@ class HardcoverClient
     # Returns array of SearchResult
     def search(query, limit: nil)
       ensure_configured!
-      limit ||= SettingsService.get(:hardcover_search_limit, default: 10)
+      limit ||= SettingsService.get(:hardcover_search_limit)
+      limit = SettingsService::DEFINITIONS[:hardcover_search_limit][:default] unless limit.to_i.positive?
 
       query_string = <<~GRAPHQL
         query SearchBooks($query: String!, $perPage: Int!) {
