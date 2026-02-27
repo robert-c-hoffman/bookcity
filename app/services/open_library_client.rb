@@ -51,7 +51,8 @@ class OpenLibraryClient
     # Search for books by query
     # Returns array of SearchResult
     def search(query, limit: nil)
-      limit ||= SettingsService.get("open_library_search_limit", default: 20)
+      limit ||= SettingsService.get("open_library_search_limit")
+      limit = SettingsService::DEFINITIONS[:open_library_search_limit][:default] unless limit.to_i.positive?
 
       response = connection.get("/search.json", {
         q: query,

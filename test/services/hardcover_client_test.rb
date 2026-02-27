@@ -259,6 +259,55 @@ class HardcoverClientTest < ActiveSupport::TestCase
     assert_equal "hardcover:12345", result.work_id
   end
 
+  test "search uses custom hardcover_search_limit setting" do
+    original_limit = SettingsService.get(:hardcover_search_limit)
+    SettingsService.set(:hardcover_api_token, "test_token")
+    SettingsService.set(:hardcover_search_limit, 30)
+
+    VCR.turned_off do
+      stub_request(:post, HardcoverClient::BASE_URL)
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { "data" => { "search" => { "results" => { "hits" => [], "found" => 0 } } } }.to_json
+        )
+
+      HardcoverClient.search("test query")
+
+      assert_requested(:post, HardcoverClient::BASE_URL) do |request|
+        body = JSON.parse(request.body)
+        body["variables"]["perPage"] == 30
+      end
+    end
+  ensure
+    SettingsService.set(:hardcover_search_limit, original_limit)
+  end
+
+  test "search falls back to default limit when hardcover_search_limit is zero" do
+    original_limit = SettingsService.get(:hardcover_search_limit)
+    SettingsService.set(:hardcover_api_token, "test_token")
+    SettingsService.set(:hardcover_search_limit, 0)
+
+    VCR.turned_off do
+      stub_request(:post, HardcoverClient::BASE_URL)
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { "data" => { "search" => { "results" => { "hits" => [], "found" => 0 } } } }.to_json
+        )
+
+      HardcoverClient.search("test query")
+
+      expected_default = SettingsService::DEFINITIONS[:hardcover_search_limit][:default]
+      assert_requested(:post, HardcoverClient::BASE_URL) do |request|
+        body = JSON.parse(request.body)
+        body["variables"]["perPage"] == expected_default
+      end
+    end
+  ensure
+    SettingsService.set(:hardcover_search_limit, original_limit)
+  end
+
   test "search handles cached_image as JSON object" do
     SettingsService.set(:hardcover_api_token, "test_token")
 

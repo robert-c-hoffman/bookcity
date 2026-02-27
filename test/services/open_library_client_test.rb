@@ -31,6 +31,51 @@ class OpenLibraryClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "search uses open_library_search_limit setting when no limit given" do
+    original_limit = SettingsService.get(:open_library_search_limit)
+    SettingsService.set(:open_library_search_limit, 15)
+
+    VCR.turned_off do
+      stub_request(:get, /openlibrary\.org\/search\.json/)
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { "docs" => [], "numFound" => 0 }.to_json
+        )
+
+      OpenLibraryClient.search("test query")
+
+      assert_requested(:get, /openlibrary\.org\/search\.json/) do |request|
+        request.uri.to_s.include?("limit=15")
+      end
+    end
+  ensure
+    SettingsService.set(:open_library_search_limit, original_limit)
+  end
+
+  test "search falls back to default limit when open_library_search_limit is zero" do
+    original_limit = SettingsService.get(:open_library_search_limit)
+    SettingsService.set(:open_library_search_limit, 0)
+
+    VCR.turned_off do
+      stub_request(:get, /openlibrary\.org\/search\.json/)
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { "docs" => [], "numFound" => 0 }.to_json
+        )
+
+      OpenLibraryClient.search("test query")
+
+      expected_default = SettingsService::DEFINITIONS[:open_library_search_limit][:default]
+      assert_requested(:get, /openlibrary\.org\/search\.json/) do |request|
+        request.uri.to_s.include?("limit=#{expected_default}")
+      end
+    end
+  ensure
+    SettingsService.set(:open_library_search_limit, original_limit)
+  end
+
   test "work returns WorkDetails" do
     with_cassette("open_library/work_details") do
       work = OpenLibraryClient.work("OL45804W") # Harry Potter and the Philosopher's Stone
