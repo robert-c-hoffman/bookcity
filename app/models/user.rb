@@ -4,6 +4,9 @@ class User < ApplicationRecord
   has_many :requests, dependent: :destroy
   has_many :uploads, dependent: :destroy
   has_many :notifications, dependent: :destroy
+  has_many :activity_logs, dependent: :destroy
+
+  scope :active, -> { where(deleted_at: nil) }
 
   # Encrypt OTP secret and backup codes at rest
   encrypts :otp_secret
@@ -11,13 +14,12 @@ class User < ApplicationRecord
 
   enum :role, { user: 0, admin: 1 }, default: :user
 
-  validates :timezone, inclusion: { in: ActiveSupport::TimeZone.all.map(&:name), allow_nil: true }
-
   normalizes :username, with: ->(u) { u.strip.downcase }
 
-  validates :username, presence: true, uniqueness: true,
+  validates :username, presence: true, uniqueness: { conditions: -> { where(deleted_at: nil) } },
     format: { with: /\A[a-z0-9_]+\z/, message: "only allows lowercase letters, numbers, and underscores" }
   validates :name, presence: true
+  validates :timezone, inclusion: { in: ActiveSupport::TimeZone.all.map(&:name), allow_nil: true }
   validates :password, length: { minimum: 12 },
     format: {
       with: /\A(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+\z/,
@@ -122,14 +124,9 @@ class User < ApplicationRecord
     hashed_input = Digest::SHA256.hexdigest(code.to_s.upcase.gsub(/\s/, ""))
     remaining_codes = backup_codes.split(",")
 
-    # Use constant-time comparison to prevent timing attacks
-    matched_code = remaining_codes.find do |stored|
-      ActiveSupport::SecurityUtils.secure_compare(stored, hashed_input)
-    end
-
-    if matched_code
+    if remaining_codes.include?(hashed_input)
       # Remove used code (one-time use)
-      remaining_codes.delete(matched_code)
+      remaining_codes.delete(hashed_input)
       update!(backup_codes: remaining_codes.any? ? remaining_codes.join(",") : nil)
       Rails.logger.info "[Security] Backup code used for user '#{username}'"
       true
@@ -141,6 +138,18 @@ class User < ApplicationRecord
   def backup_codes_remaining
     return 0 unless backup_codes.present?
     backup_codes.split(",").count
+  end
+
+  # Soft delete
+  def soft_delete!
+    transaction do
+      sessions.destroy_all
+      update!(deleted_at: Time.current)
+    end
+  end
+
+  def deleted?
+    deleted_at.present?
   end
 
   # OIDC/SSO methods
@@ -155,13 +164,13 @@ class User < ApplicationRecord
     info = auth_hash["info"] || {}
 
     # First try to find by OIDC identity
-    user = find_by(oidc_provider: provider, oidc_uid: uid)
+    user = active.find_by(oidc_provider: provider, oidc_uid: uid)
     return user if user
 
     # Try to find by email and link the OIDC identity
     email = info["email"].to_s.strip.downcase
     if email.present?
-      user = find_by(username: email.split("@").first.gsub(/[^a-z0-9_]/, "_"))
+      user = active.find_by(username: email.split("@").first.gsub(/[^a-z0-9_]/, "_"))
       if user && !user.oidc_user?
         user.update!(oidc_provider: provider, oidc_uid: uid)
         return user
@@ -181,7 +190,7 @@ class User < ApplicationRecord
     # Ensure username is unique
     username = base_username
     counter = 1
-    while exists?(username: username)
+    while active.exists?(username: username)
       username = "#{base_username}#{counter}"
       counter += 1
     end
@@ -207,6 +216,6 @@ class User < ApplicationRecord
   private
 
   def set_admin_if_first_user
-    self.role = :admin if User.count.zero?
+    self.role = :admin if User.active.count.zero?
   end
 end

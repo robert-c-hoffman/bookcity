@@ -29,6 +29,14 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", "Settings"
   end
 
+  test "index warns when disabling authentication is enabled" do
+    get admin_settings_url
+
+    assert_response :success
+    assert_select "input[name='settings[auth_disabled]'][data-action='change->settings-form#handleAuthDisabledToggle']"
+    assert_select "p", text: /Warning: This removes password and 2FA authentication/
+  end
+
   test "index shows library picker dropdown when audiobookshelf configured" do
     SettingsService.set(:audiobookshelf_url, "http://localhost:13378")
     SettingsService.set(:audiobookshelf_api_key, "test-api-key")
@@ -108,6 +116,42 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     assert flash[:alert].present?
   end
 
+  test "bulk_update immediately updates output_paths health when paths are valid" do
+    Dir.mktmpdir do |audiobook_dir|
+      Dir.mktmpdir do |ebook_dir|
+        patch bulk_update_admin_settings_url, params: {
+          settings: {
+            audiobook_output_path: audiobook_dir,
+            ebook_output_path: ebook_dir
+          }
+        }
+
+        assert_redirected_to admin_settings_path
+
+        health = SystemHealth.for_service("output_paths")
+        assert health.healthy?
+        assert_includes health.message, "accessible"
+      end
+    end
+  end
+
+  test "bulk_update immediately updates output_paths health with failure reason" do
+    Dir.mktmpdir do |audiobook_dir|
+      patch bulk_update_admin_settings_url, params: {
+        settings: {
+          audiobook_output_path: audiobook_dir,
+          ebook_output_path: "/definitely/missing/path"
+        }
+      }
+
+      assert_redirected_to admin_settings_path
+
+      health = SystemHealth.for_service("output_paths")
+      assert health.degraded?
+      assert_includes health.message, "Ebook path does not exist"
+    end
+  end
+
   # Test connection tests for Prowlarr
   test "test_prowlarr fails when not configured" do
     SettingsService.set(:prowlarr_url, "")
@@ -124,7 +168,7 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     SettingsService.set(:prowlarr_api_key, "test-api-key")
 
     VCR.turned_off do
-      stub_request(:get, "http://localhost:9696/api/v1/health")
+      stub_request(:get, "http://localhost:9696/api/v1/indexer")
         .with(headers: { "X-Api-Key" => "test-api-key" })
         .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
 
@@ -140,7 +184,7 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     SettingsService.set(:prowlarr_api_key, "test-api-key")
 
     VCR.turned_off do
-      stub_request(:get, "http://localhost:9696/api/v1/health")
+      stub_request(:get, "http://localhost:9696/api/v1/indexer")
         .with(headers: { "X-Api-Key" => "test-api-key" })
         .to_return(status: 401)
 
@@ -156,7 +200,7 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     SettingsService.set(:prowlarr_api_key, "test-api-key")
 
     VCR.turned_off do
-      stub_request(:get, "http://localhost:9696/api/v1/health")
+      stub_request(:get, "http://localhost:9696/api/v1/indexer")
         .to_timeout
 
       post test_prowlarr_admin_settings_url
@@ -226,6 +270,28 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
       assert_redirected_to admin_settings_path
       assert flash[:alert].present?
     end
+  end
+
+  test "sync_audiobookshelf_library fails when not configured" do
+    SettingsService.set(:audiobookshelf_url, "")
+    SettingsService.set(:audiobookshelf_api_key, "")
+
+    post sync_audiobookshelf_library_admin_settings_url
+
+    assert_redirected_to admin_settings_path
+    assert_match /not configured/i, flash[:alert]
+  end
+
+  test "sync_audiobookshelf_library enqueues a sync job" do
+    SettingsService.set(:audiobookshelf_url, "http://localhost:13378")
+    SettingsService.set(:audiobookshelf_api_key, "test-api-key")
+
+    assert_enqueued_with(job: AudiobookshelfLibrarySyncJob) do
+      post sync_audiobookshelf_library_admin_settings_url
+    end
+
+    assert_redirected_to admin_settings_path
+    assert_match /sync started/i, flash[:notice]
   end
 
   # Test connection tests for OIDC
@@ -334,7 +400,7 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     SettingsService.set(:prowlarr_api_key, "test-api-key")
 
     VCR.turned_off do
-      stub_request(:get, "http://localhost:9696/api/v1/health")
+      stub_request(:get, "http://localhost:9696/api/v1/indexer")
         .with(headers: { "X-Api-Key" => "test-api-key" })
         .to_return(status: 200, body: "[]", headers: { "Content-Type" => "application/json" })
 
@@ -373,7 +439,7 @@ class Admin::SettingsControllerTest < ActionDispatch::IntegrationTest
     SettingsService.set(:prowlarr_api_key, "test-api-key")
 
     VCR.turned_off do
-      stub_request(:get, "https://localhost:9696/api/v1/health")
+      stub_request(:get, "https://localhost:9696/api/v1/indexer")
         .to_raise(Faraday::SSLError.new("SSL certificate verify failed"))
 
       post test_prowlarr_admin_settings_url

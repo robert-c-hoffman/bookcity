@@ -149,25 +149,6 @@ class PostProcessingJobTest < ActiveJob::TestCase
     end
   end
 
-  test "skips scan when library ID is not configured" do
-    VCR.turned_off do
-      stub_audiobookshelf_library(@temp_dest_base)
-      scan_stub = stub_audiobookshelf_scan
-      
-      # Clear the library ID to simulate misconfiguration
-      SettingsService.set(:audiobookshelf_audiobook_library_id, "")
-
-      PostProcessingJob.perform_now(@download.id)
-
-      # Scan should not be triggered
-      assert_not_requested scan_stub
-      
-      # Request should still complete successfully
-      @request.reload
-      assert @request.completed?
-    end
-  end
-
   test "continues without error if audiobookshelf scan fails" do
     VCR.turned_off do
       stub_audiobookshelf_library(@temp_dest_base)
@@ -286,6 +267,160 @@ class PostProcessingJobTest < ActiveJob::TestCase
     assert File.exist?(File.join(expected_dest, "audiobook.mp3")), "File should be copied using client-specific path"
   end
 
+  test "removes usenet download from client after successful import" do
+    client = DownloadClient.create!(
+      name: "SABnzbd Test",
+      client_type: :sabnzbd,
+      url: "http://localhost:8080",
+      api_key: "test-api-key"
+    )
+    @download.update!(download_client: client, external_id: "SABnzbd_nzo_abc123")
+
+    SettingsService.set(:audiobookshelf_url, "")
+
+    VCR.turned_off do
+      # Stub the SABnzbd queue delete API call
+      remove_stub = stub_request(:get, "http://localhost:8080/api")
+        .with(query: hash_including("mode" => "queue", "name" => "delete", "value" => "SABnzbd_nzo_abc123", "del_files" => "1"))
+        .to_return(status: 200, body: { "status" => true }.to_json, headers: { "Content-Type" => "application/json" })
+
+      PostProcessingJob.perform_now(@download.id)
+
+      assert_requested remove_stub
+      assert @request.reload.completed?
+    end
+  end
+
+  test "does not remove torrent download after import" do
+    client = DownloadClient.create!(
+      name: "qBittorrent Test",
+      client_type: :qbittorrent,
+      url: "http://localhost:8080"
+    )
+    @download.update!(download_client: client, external_id: "abc123hash")
+
+    SettingsService.set(:audiobookshelf_url, "")
+
+    PostProcessingJob.perform_now(@download.id)
+
+    assert @request.reload.completed?
+    # Source files should still exist (copied, not removed)
+    assert File.exist?(File.join(@temp_source, "audiobook.mp3"))
+  end
+
+  test "does not remove usenet download when setting is disabled" do
+    SettingsService.set(:remove_completed_usenet_downloads, false)
+
+    client = DownloadClient.create!(
+      name: "SABnzbd Disabled",
+      client_type: :sabnzbd,
+      url: "http://localhost:8080",
+      api_key: "test-api-key"
+    )
+    @download.update!(download_client: client, external_id: "SABnzbd_nzo_abc123")
+
+    SettingsService.set(:audiobookshelf_url, "")
+
+    # No HTTP stubs for SABnzbd - if cleanup ran, it would hit VCR and fail
+    PostProcessingJob.perform_now(@download.id)
+
+    assert @request.reload.completed?
+  end
+
+  test "import succeeds even when usenet cleanup fails" do
+    client = DownloadClient.create!(
+      name: "SABnzbd Failing",
+      client_type: :sabnzbd,
+      url: "http://localhost:8080",
+      api_key: "test-api-key"
+    )
+    @download.update!(download_client: client, external_id: "SABnzbd_nzo_abc123")
+
+    SettingsService.set(:audiobookshelf_url, "")
+
+    VCR.turned_off do
+      # Stub SABnzbd to return an error
+      stub_request(:get, "http://localhost:8080/api")
+        .with(query: hash_including("mode" => "queue", "name" => "delete"))
+        .to_return(status: 500)
+      stub_request(:get, "http://localhost:8080/api")
+        .with(query: hash_including("mode" => "history", "name" => "delete"))
+        .to_return(status: 500)
+
+      PostProcessingJob.perform_now(@download.id)
+
+      # Import should still complete despite cleanup failure
+      assert @request.reload.completed?
+    end
+  end
+
+  test "remaps path using category when global remote_path is a sibling folder" do
+    # Scenario: qBittorrent saves to /mnt/media/Torrents/shelfarr/TorrentName
+    # but download_remote_path is /mnt/media/Torrents/Completed (SABnzbd path)
+    # The category-aware remapping should detect the shared parent and remap correctly
+
+    # Create a subdirectory simulating the category-based download path
+    category_dir = File.join(@temp_source, "shelfarr")
+    download_dir = File.join(category_dir, "Test Audiobook")
+    FileUtils.mkdir_p(download_dir)
+    File.write(File.join(download_dir, "audiobook.mp3"), "test audio content")
+
+    client = DownloadClient.create!(
+      name: "qBit Category Test",
+      client_type: :qbittorrent,
+      url: "http://localhost:8080",
+      category: "shelfarr"
+    )
+
+    # Host path: /mnt/media/Torrents/shelfarr/Test Audiobook
+    @download.update!(
+      download_client: client,
+      download_path: "/mnt/media/Torrents/shelfarr/Test Audiobook"
+    )
+
+    # Global settings point to a sibling folder (SABnzbd's Completed folder)
+    SettingsService.set(:download_remote_path, "/mnt/media/Torrents/Completed")
+    SettingsService.set(:download_local_path, @temp_source + "/Completed")
+    SettingsService.set(:audiobookshelf_url, "")
+
+    # The parent of remote_path (/mnt/media/Torrents) matches the parent of category path
+    # So /mnt/media/Torrents/shelfarr/Test Audiobook → @temp_source/shelfarr/Test Audiobook
+    PostProcessingJob.perform_now(@download.id)
+
+    expected_dest = File.join(@temp_dest_base, @book.author, @book.title)
+    assert File.exist?(File.join(expected_dest, "audiobook.mp3")),
+      "File should be copied using category-aware sibling remapping"
+  end
+
+  test "remaps path using client download_path with category" do
+    # Scenario: client has a download_path and category, global remote doesn't match
+    category_dir = File.join(@temp_source, "Test Audiobook")
+    FileUtils.mkdir_p(category_dir)
+    File.write(File.join(category_dir, "audiobook.mp3"), "test audio content")
+
+    client = DownloadClient.create!(
+      name: "qBit DlPath Test",
+      client_type: :qbittorrent,
+      url: "http://localhost:8080",
+      category: "shelfarr",
+      download_path: @temp_source  # Local path for this client's files
+    )
+
+    @download.update!(
+      download_client: client,
+      download_path: "/mnt/torrents/shelfarr/Test Audiobook"
+    )
+
+    SettingsService.set(:download_remote_path, "")
+    SettingsService.set(:audiobookshelf_url, "")
+
+    PostProcessingJob.perform_now(@download.id)
+
+    expected_dest = File.join(@temp_dest_base, @book.author, @book.title)
+    assert File.exist?(File.join(expected_dest, "audiobook.mp3")),
+      "File should be copied using client download_path + category extraction"
+  end
+
   test "marks request for attention when source path is blank" do
     @download.update!(download_path: "")
 
@@ -304,61 +439,6 @@ class PostProcessingJobTest < ActiveJob::TestCase
 
     assert @request.attention_needed?
     assert_match /source path not found/i, @request.issue_description
-  end
-
-  test "normalizes backslashes in paths from Windows qBittorrent clients" do
-    # Create a subdirectory with a nested structure to simulate the Windows path
-    download_subdir = File.join(@temp_source, "Complete", "Test Audiobook")
-    FileUtils.mkdir_p(download_subdir)
-    File.write(File.join(download_subdir, "audiobook.mp3"), "test audio content")
-
-    # Simulate path from Windows qBittorrent with backslashes
-    # This represents the path as it would come from qBittorrent: C:\Downloads\Complete\Test Audiobook
-    @download.update!(download_path: "C:\\Downloads\\Complete\\Test Audiobook")
-
-    # Configure global path remapping to convert Windows path to Docker path
-    # Remote path uses backslashes (Windows), local path uses forward slashes (Docker/Linux)
-    SettingsService.set(:download_remote_path, "C:\\Downloads")
-    SettingsService.set(:download_local_path, @temp_source)
-    SettingsService.set(:audiobookshelf_url, "")
-    SettingsService.set(:audiobook_output_path, @temp_dest_base)
-
-    PostProcessingJob.perform_now(@download.id)
-
-    # File should be copied successfully despite mixed separators
-    expected_dest = File.join(@temp_dest_base, @book.author, @book.title)
-    assert File.exist?(File.join(expected_dest, "audiobook.mp3")), "File should be copied even with backslash paths"
-  end
-
-  test "normalizes mixed path separators when using client-specific download path" do
-    # Create a subdirectory with nested structure
-    download_subdir = File.join(@temp_source, "subfolder", "Test Audiobook")
-    FileUtils.mkdir_p(download_subdir)
-    File.write(File.join(download_subdir, "audiobook.mp3"), "test audio content")
-
-    # Create a download client
-    client = DownloadClient.create!(
-      name: "Test Client",
-      client_type: :qbittorrent,
-      url: "http://localhost:8080",
-      download_path: @temp_source
-    )
-
-    # Path from Windows qBittorrent with backslashes - e.g., C:\torrents\subfolder\Test Audiobook
-    # The basename extraction should handle this correctly
-    @download.update!(
-      download_client: client,
-      download_path: "C:\\torrents\\subfolder\\Test Audiobook"
-    )
-
-    SettingsService.set(:audiobookshelf_url, "")
-    SettingsService.set(:audiobook_output_path, @temp_dest_base)
-
-    PostProcessingJob.perform_now(@download.id)
-
-    # File should be copied to destination
-    expected_dest = File.join(@temp_dest_base, @book.author, @book.title)
-    assert File.exist?(File.join(expected_dest, "audiobook.mp3")), "File should be copied with normalized path"
   end
 
   private

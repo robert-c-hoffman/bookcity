@@ -289,10 +289,7 @@ class UploadProcessingJob < ApplicationJob
       SettingsService.get(:audiobookshelf_ebook_library_id)
     end
 
-    unless library_id.present?
-      Rails.logger.warn "[UploadProcessingJob] Skipping Audiobookshelf scan: no library ID configured for #{book.book_type}. Configure audiobookshelf_#{book.book_type}_library_id in Settings."
-      return
-    end
+    return unless library_id.present?
 
     AudiobookshelfClient.scan_library(library_id)
     Rails.logger.info "[UploadProcessingJob] Triggered Audiobookshelf library scan for #{book.book_type}"

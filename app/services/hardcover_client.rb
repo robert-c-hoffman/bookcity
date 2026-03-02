@@ -66,26 +66,16 @@ class HardcoverClient
       Rails.logger.info "[HardcoverClient] Response keys: #{response.keys rescue 'not a hash'}"
       Rails.logger.info "[HardcoverClient] Search data: #{response.dig('data', 'search')&.keys rescue 'not accessible'}"
 
-      search_data = response.dig("data", "search", "results") || {}
+      raw_results = response.dig("data", "search", "results")
+      results = extract_hits(raw_results)
 
-      # The Hardcover API returns results as a hash with metadata
-      # The actual book hits are in the "hits" key
-      hits = if search_data.is_a?(Hash)
-        search_data["hits"] || []
-      elsif search_data.is_a?(Array)
-        # Legacy support if API changes back to returning array directly
-        search_data
-      else
-        []
+      Rails.logger.info "[HardcoverClient] Search '#{query}' returned #{results.size} results"
+      if results.any?
+        Rails.logger.info "[HardcoverClient] First result class: #{results.first.class}"
+        Rails.logger.info "[HardcoverClient] First result: #{results.first.inspect[0..500]}"
       end
 
-      Rails.logger.info "[HardcoverClient] Search '#{query}' returned #{hits.size} results"
-      if hits.any?
-        Rails.logger.info "[HardcoverClient] First result class: #{hits.first.class}"
-        Rails.logger.info "[HardcoverClient] First result: #{hits.first.inspect[0..500]}"
-      end
-
-      hits.filter_map { |result| parse_search_result(result) }
+      results.filter_map { |result| parse_search_result(result) }
     end
 
     # Get book details by Hardcover book ID
@@ -216,20 +206,13 @@ class HardcoverClient
     end
 
     def parse_search_result(result)
-      # Handle different result formats from Hardcover API
-      # The search results may come as a hash with a "document" key or directly
-      unless result.is_a?(Hash)
-        Rails.logger.warn "[HardcoverClient] Unexpected result format: #{result.class} - #{result.inspect[0..200]}"
-        return nil
-      end
-
-      # Extract the actual document data
-      doc = result["document"] || result
+      doc = result["document"]
+      return nil unless doc.is_a?(Hash)
 
       SearchResult.new(
         id: doc["id"]&.to_s,
         title: doc["title"],
-        author: extract_author_from_result(result),
+        author: extract_author(doc),
         description: doc["description"],
         release_year: doc["release_year"],
         cover_url: extract_cover_url(doc),
@@ -238,26 +221,8 @@ class HardcoverClient
       )
     end
 
-    def extract_author_from_result(result)
-      # Try different possible author field locations
-      result["author_names"]&.first ||
-        result["document"]&.dig("author_names")&.first ||
-        result["author"] ||
-        result["document"]&.dig("author")
-    end
-
-    def extract_cover_url(doc)
-      # Handle both string URLs and JSON object formats for cached_image
-      cached_image = doc["cached_image"] || doc["image"]
-      return nil if cached_image.blank?
-
-      # If it's a hash/JSON object, extract the URL
-      if cached_image.is_a?(Hash)
-        cached_image["url"] || cached_image[:url]
-      else
-        # Otherwise it's already a string URL
-        cached_image
-      end
+    def extract_author(doc)
+      doc["author_names"]&.first || doc["author"]
     end
 
     def parse_book_details(book)
@@ -283,6 +248,23 @@ class HardcoverClient
         genres: [],           # Would need separate query
         series_name: series_name
       )
+    end
+
+    def extract_cover_url(doc)
+      cached = doc["cached_image"]
+      image = doc["image"]
+      
+      cached_url = cached.is_a?(Hash) ? cached["url"] : cached
+      image_url = image.is_a?(Hash) ? image["url"] : image
+      
+      cached_url || image_url
+    end
+
+    def extract_hits(raw_results)
+      return [] unless raw_results.is_a?(Hash)
+      
+      hits = raw_results["hits"]
+      hits.is_a?(Array) ? hits : []
     end
   end
 end

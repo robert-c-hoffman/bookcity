@@ -36,11 +36,9 @@ class HardcoverClientTest < ActiveSupport::TestCase
 
     VCR.turned_off do
       stub_hardcover_search("lord of the rings", [
-        { "document" => {
-          "id" => 123, "title" => "The Lord of the Rings", "author_names" => [ "J.R.R. Tolkien" ],
+        { "id" => 123, "title" => "The Lord of the Rings", "author_names" => [ "J.R.R. Tolkien" ],
           "release_year" => 1954, "cached_image" => "https://example.com/cover.jpg",
-          "has_audiobook" => true, "has_ebook" => true
-        } }
+          "has_audiobook" => true, "has_ebook" => true }
       ])
 
       results = HardcoverClient.search("lord of the rings")
@@ -69,88 +67,44 @@ class HardcoverClientTest < ActiveSupport::TestCase
     end
   end
 
-  test "search handles real-world API response structure with hits" do
+  test "search returns empty array when results shape is invalid" do
     SettingsService.set(:hardcover_api_token, "test_token")
 
     VCR.turned_off do
-      # Simulate the exact structure from the logs with multiple books in hits
-      stub_hardcover_search("Roverpowered", [
-        { "document" => {
-          "id" => 123, "title" => "Roverpowered", "author_names" => [ "Drew Hayes" ],
-          "release_year" => 2020, "cached_image" => "https://example.com/cover.jpg",
-          "has_audiobook" => true, "has_ebook" => true
-        } },
-        { "document" => {
-          "id" => 456, "title" => "Roverpowered 2", "author_names" => [ "Drew Hayes" ],
-          "release_year" => 2021, "cached_image" => "https://example.com/cover2.jpg",
-          "has_audiobook" => true, "has_ebook" => false
-        } }
+      stub_request(:post, HardcoverClient::BASE_URL)
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { "data" => { "search" => { "results" => [] } } }.to_json
+        )
+
+      results = HardcoverClient.search("lord of the rings")
+
+      assert_equal [], results
+    end
+  end
+
+  test "search extracts cover_url from image hash" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      stub_hardcover_search("dune", [
+        {
+          "id" => 123,
+          "title" => "Dune",
+          "author_names" => [ "Frank Herbert" ],
+          "release_year" => 1965,
+          "cached_image" => nil,
+          "image" => { "url" => "https://example.com/image-cover.jpg" },
+          "has_audiobook" => true,
+          "has_ebook" => true
+        }
       ])
 
-      results = HardcoverClient.search("Roverpowered")
+      results = HardcoverClient.search("dune")
 
-      assert_kind_of Array, results
-      assert_equal 2, results.size
-      assert_equal "Roverpowered", results.first.title
-      assert_equal "Drew Hayes", results.first.author
-      assert_equal "Roverpowered 2", results.last.title
-    end
-  end
-
-  test "search handles legacy array response format" do
-    SettingsService.set(:hardcover_api_token, "test_token")
-
-    VCR.turned_off do
-      # Simulate legacy format where results is an array directly
-      stub_request(:post, HardcoverClient::BASE_URL)
-        .to_return(
-          status: 200,
-          headers: { "Content-Type" => "application/json" },
-          body: {
-            "data" => {
-              "search" => {
-                "results" => [
-                  { "document" => {
-                    "id" => 789, "title" => "Legacy Book", "author_names" => [ "Legacy Author" ],
-                    "release_year" => 2019, "cached_image" => "https://example.com/legacy.jpg",
-                    "has_audiobook" => false, "has_ebook" => true
-                  } }
-                ]
-              }
-            }
-          }.to_json
-        )
-
-      results = HardcoverClient.search("Legacy")
-
-      assert_kind_of Array, results
       assert_equal 1, results.size
-      assert_equal "Legacy Book", results.first.title
-    end
-  end
-
-  test "search handles unexpected response format gracefully" do
-    SettingsService.set(:hardcover_api_token, "test_token")
-
-    VCR.turned_off do
-      # Simulate unexpected format (string instead of hash or array)
-      stub_request(:post, HardcoverClient::BASE_URL)
-        .to_return(
-          status: 200,
-          headers: { "Content-Type" => "application/json" },
-          body: {
-            "data" => {
-              "search" => {
-                "results" => "unexpected string"
-              }
-            }
-          }.to_json
-        )
-
-      results = HardcoverClient.search("Unexpected")
-
-      assert_kind_of Array, results
-      assert_equal 0, results.size
+      assert_equal "https://example.com/image-cover.jpg", results.first.cover_url
     end
   end
 
@@ -177,6 +131,27 @@ class HardcoverClientTest < ActiveSupport::TestCase
       assert_equal 2020, book.release_year
       assert_equal 300, book.pages
       assert_equal "Test Series", book.series_name
+    end
+  end
+
+  test "book extracts cover_url from cached_image hash" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      stub_hardcover_book(12346, {
+        "id" => 12346,
+        "title" => "Hash Cover Book",
+        "description" => "A test description",
+        "release_year" => 2021,
+        "cached_image" => { "url" => "https://example.com/hash-cover.jpg" },
+        "contributions" => [ { "author" => { "name" => "Test Author" } } ],
+        "default_physical_edition" => { "pages" => 320 },
+        "book_series" => []
+      })
+
+      book = HardcoverClient.book(12346)
+
+      assert_equal "https://example.com/hash-cover.jpg", book.cover_url
     end
   end
 
@@ -259,54 +234,23 @@ class HardcoverClientTest < ActiveSupport::TestCase
     assert_equal "hardcover:12345", result.work_id
   end
 
-  test "search handles cached_image as JSON object" do
-    SettingsService.set(:hardcover_api_token, "test_token")
-
-    VCR.turned_off do
-      stub_hardcover_search("test", [
-        { "document" => {
-          "id" => 456,
-          "title" => "Test Book",
-          "author_names" => [ "Test Author" ],
-          "release_year" => 2023,
-          "cached_image" => { "url" => "https://example.com/cover.jpg", "width" => 512, "height" => 768 },
-          "has_audiobook" => true,
-          "has_ebook" => false
-        } }
-      ])
-
-      results = HardcoverClient.search("test")
-
-      assert_kind_of Array, results
-      assert_equal 1, results.size
-      result = results.first
-      assert_equal "Test Book", result.title
-      assert_equal "https://example.com/cover.jpg", result.cover_url
-      assert result.has_audiobook
-      assert_not result.has_ebook
-    end
-  end
-
   private
 
   def stub_hardcover_search(query, results)
-    # Hardcover API returns results as a hash with metadata, not just an array
-    results_hash = {
-      "hits" => results,
-      "found" => results.size,
-      "page" => 1,
-      "out_of" => 2229375, # Total number of books in the database
+    typesense_response = {
       "facet_counts" => [],
-      "search_time_ms" => 1,
+      "found" => results.size,
+      "hits" => results.map { |r| { "document" => r } },
+      "request_params" => {},
       "search_cutoff" => false,
-      "request_params" => { "q" => query, "per_page" => 10 }
+      "search_time_ms" => 5
     }
 
     stub_request(:post, HardcoverClient::BASE_URL)
       .to_return(
         status: 200,
         headers: { "Content-Type" => "application/json" },
-        body: { "data" => { "search" => { "results" => results_hash } } }.to_json
+        body: { "data" => { "search" => { "results" => typesense_response } } }.to_json
       )
   end
 

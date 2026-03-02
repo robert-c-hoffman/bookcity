@@ -33,6 +33,12 @@
 # Ignore key files for decrypting credentials and more.
 /config/*.key
 
+# Ignore macOS Finder metadata files.
+.DS_Store
+
 
 /app/assets/builds/*
 !/app/assets/builds/.keep
+
+# Agent instructions (local development reference only)
+/AGENTS.md

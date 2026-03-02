@@ -46,9 +46,9 @@ RUN bundle install && \
 # Copy application code
 COPY . .
 
-# Capture git commit for version tracking (passed as build arg)
-ARG GIT_COMMIT=unknown
-RUN echo "${GIT_COMMIT}" > VERSION
+# Inject version from build arg (set by CI when building from a tag)
+ARG APP_VERSION=""
+RUN if [ -n "$APP_VERSION" ]; then echo "$APP_VERSION" > VERSION; fi
 
 # Precompile bootsnap code for faster boot times.
 # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
