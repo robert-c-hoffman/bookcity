@@ -36,7 +36,6 @@
 - **Auto-Processing** — Organizes files by author/title and delivers to Audiobookshelf
 - **Library Sync** — Automatic library scans after downloads complete
 - **Multi-User** — Role-based access with user requests and admin controls
-- **Timezone Support** — Localized time display based on user timezone preferences
 - **Two-Factor Auth** — TOTP-based 2FA with backup codes
 - **OIDC/SSO** — Single sign-on via OpenID Connect (Authentik, Authelia, Keycloak, etc.)
 - **Notifications** — In-app notifications when your books are ready
@@ -71,6 +70,7 @@ Visit `http://localhost:5056` — the first user to register becomes admin.
 |----------|---------|-------------|
 | `PUID` | `1000` | User ID for file permissions. Should match the owner of your mounted volumes |
 | `PGID` | `1000` | Group ID for file permissions. Should match the group of your mounted volumes |
+| `CHOWN_ON_START` | `auto` | Control startup ownership fixes for mounted storage. `auto` (default) attempts to `chown`, but continues if unsupported (eg NFS root-squash). `always` fails on `chown` errors. `never` skips all `chown` calls (use only if volume is pre-permissioned). |
 | `HTTP_PORT` | `80` | Internal container port. Change if port 80 is in use (e.g., behind gluetun) |
 | `RAILS_MASTER_KEY` | Auto-generated | Encryption key for secrets. Auto-generated on first run if not set |
 | `RAILS_RELATIVE_URL_ROOT` | `/` | Base path for running behind a reverse proxy at a sub-path (e.g., `/shelfarr`) |

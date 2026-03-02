@@ -19,10 +19,14 @@ Rails.application.routes.draw do
   get "search/results", to: "search#results"
 
   # Library
-  resources :library, only: [:index, :show, :destroy]
+  resources :library, only: [ :index, :show, :destroy ] do
+    member do
+      post :retry_post_processing
+    end
+  end
 
   # Profile
-  resource :profile, only: [:show, :edit, :update] do
+  resource :profile, only: [ :show, :edit, :update ] do
     get :password, on: :member
     patch :update_password, on: :member
     # Two-factor authentication
@@ -33,20 +37,28 @@ Rails.application.routes.draw do
   end
 
   # Notifications
-  resources :notifications, only: [:index] do
+  resources :notifications, only: [ :index ] do
     member do
       post :mark_read
     end
     collection do
       post :mark_all_read
+      delete :clear_all
     end
   end
 
   # Requests
-  resources :requests, only: [:index, :show, :new, :create, :destroy] do
+  resources :requests, only: [ :index, :show, :new, :create, :destroy ] do
     member do
       get :download
       post :retry
+    end
+  end
+
+  # API
+  namespace :api, defaults: { format: :json } do
+    namespace :v1 do
+      resources :users, only: [ :create ]
     end
   end
 
@@ -56,7 +68,7 @@ Rails.application.routes.draw do
     post "check_updates", to: "dashboard#check_updates"
     post "run_health_check", to: "dashboard#run_health_check"
     resources :users
-    resources :uploads, only: [:index, :new, :create, :show, :destroy] do
+    resources :uploads, only: [ :index, :new, :create, :show, :destroy ] do
       member do
         post :retry
       end
@@ -68,10 +80,11 @@ Rails.application.routes.draw do
         post :move_down
       end
     end
-    resources :settings, only: [:index, :update] do
+    resources :settings, only: [ :index, :update ] do
       collection do
         patch :bulk_update
         post :test_prowlarr
+        post :sync_audiobookshelf_library
         post :test_audiobookshelf
         post :test_flaresolverr
         post :test_hardcover
@@ -83,9 +96,9 @@ Rails.application.routes.draw do
       post :cancel_selected
       post :retry_all
     end
-    resources :activity_logs, only: [:index]
+    resources :activity_logs, only: [ :index ]
     resources :requests, only: [] do
-      resources :search_results, only: [:index] do
+      resources :search_results, only: [ :index ] do
         member do
           post :select
         end

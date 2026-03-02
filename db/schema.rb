@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_15_014700) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_21_000002) do
   create_table "activity_logs", force: :cascade do |t|
     t.string "action", null: false
     t.string "controller"
@@ -89,6 +89,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_15_014700) do
     t.index ["external_id"], name: "index_downloads_on_external_id"
     t.index ["request_id"], name: "index_downloads_on_request_id"
     t.index ["status"], name: "index_downloads_on_status"
+  end
+
+  create_table "library_items", force: :cascade do |t|
+    t.string "audiobookshelf_id", null: false
+    t.string "author"
+    t.datetime "created_at", null: false
+    t.string "library_id", null: false
+    t.datetime "synced_at"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["library_id", "audiobookshelf_id"], name: "index_library_items_on_library_id_and_audiobookshelf_id", unique: true
+    t.index ["library_id"], name: "index_library_items_on_library_id"
+    t.index ["synced_at"], name: "index_library_items_on_synced_at"
   end
 
   create_table "notifications", force: :cascade do |t|
@@ -211,6 +224,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_15_014700) do
   create_table "users", force: :cascade do |t|
     t.text "backup_codes"
     t.datetime "created_at", null: false
+    t.datetime "deleted_at"
     t.integer "failed_login_count", default: 0, null: false
     t.datetime "last_failed_login_at"
     t.string "last_failed_login_ip"
@@ -222,12 +236,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_15_014700) do
     t.string "otp_secret"
     t.string "password_digest", null: false
     t.integer "role", default: 0, null: false
-    t.string "timezone", default: "UTC"
     t.datetime "updated_at", null: false
+    t.string "timezone", default: "UTC"
     t.string "username", null: false
+    t.index ["deleted_at"], name: "index_users_on_deleted_at"
     t.index ["oidc_uid"], name: "index_users_on_oidc_uid"
     t.index ["role"], name: "index_users_on_role"
-    t.index ["username"], name: "index_users_on_username", unique: true
+    t.index ["username"], name: "index_users_on_username", unique: true, where: "deleted_at IS NULL"
   end
 
   add_foreign_key "activity_logs", "users"

@@ -4,17 +4,19 @@ class SettingsService
     # Prowlarr Integration
     prowlarr_url: { type: "string", default: "", category: "prowlarr", description: "Base URL for Prowlarr instance (e.g., http://localhost:9696)" },
     prowlarr_api_key: { type: "string", default: "", category: "prowlarr", description: "API key from Prowlarr Settings > General" },
-    prowlarr_tags: { type: "string", default: "", category: "prowlarr", description: "Comma-separated tag IDs to filter indexers (leave empty for all indexers)" },
+    prowlarr_tags: { type: "string", default: "", category: "prowlarr", description: "Comma-separated tag IDs or names to filter indexers (leave empty for all indexers)" },
 
     # Download Settings (clients are now managed separately via Admin > Download Clients)
     preferred_download_type: { type: "string", default: "torrent", category: "download", description: "Preferred download type when both available (torrent or usenet)" },
     download_check_interval: { type: "integer", default: 60, category: "download", description: "Seconds between download status checks" },
+    remove_completed_usenet_downloads: { type: "boolean", default: true, category: "download", description: "Remove usenet downloads from client after successful import" },
 
     # Audiobookshelf Integration
     audiobookshelf_url: { type: "string", default: "", category: "audiobookshelf", description: "Base URL for Audiobookshelf (e.g., http://localhost:13378)" },
     audiobookshelf_api_key: { type: "string", default: "", category: "audiobookshelf", description: "API token from Audiobookshelf user settings" },
     audiobookshelf_audiobook_library_id: { type: "string", default: "", category: "audiobookshelf", description: "Library ID for audiobooks" },
     audiobookshelf_ebook_library_id: { type: "string", default: "", category: "audiobookshelf", description: "Library ID for ebooks" },
+    audiobookshelf_library_sync_interval: { type: "integer", default: 3600, category: "audiobookshelf", description: "Seconds between automatic Audiobookshelf library sync jobs" },
 
     # Output Paths
     audiobook_output_path: { type: "string", default: "/audiobooks", category: "paths", description: "Directory for completed audiobooks" },
@@ -56,9 +58,11 @@ class SettingsService
     github_repo: { type: "string", default: "Pedro-Revez-Silva/shelfarr", category: "updates", description: "GitHub repository for update notifications" },
 
     # Security
+    auth_disabled: { type: "boolean", default: false, category: "security", description: "Disable password authentication (username-only login for trusted networks). Can also be set via DISABLE_AUTH env var." },
     session_max_age_days: { type: "integer", default: 30, category: "security", description: "Maximum session age in days before requiring re-login" },
     login_lockout_threshold: { type: "integer", default: 5, category: "security", description: "Failed login attempts before temporary lockout" },
     login_lockout_duration_minutes: { type: "integer", default: 15, category: "security", description: "Duration of login lockout in minutes" },
+    api_token: { type: "string", category: "security", default: SecureRandom.base58(32), description: "Authentication token for the API" },
 
     # Anna's Archive
     anna_archive_enabled: { type: "boolean", default: false, category: "anna_archive", description: "Enable Anna's Archive as an additional search source for ebooks" },
@@ -69,7 +73,7 @@ class SettingsService
     # Hardcover Integration
     hardcover_api_token: { type: "string", default: "", category: "hardcover", description: "API token from Hardcover account settings (hardcover.app/account/api)" },
     metadata_source: { type: "string", default: "auto", category: "hardcover", description: "Primary metadata source: auto (Hardcover first, OpenLibrary fallback), hardcover, or openlibrary" },
-    hardcover_search_limit: { type: "integer", default: 20, category: "hardcover", description: "Maximum number of search results from Hardcover" },
+    hardcover_search_limit: { type: "integer", default: 10, category: "hardcover", description: "Maximum number of search results from Hardcover" },
 
     # OIDC/SSO Authentication
     oidc_enabled: { type: "boolean", default: false, category: "oidc", description: "Enable OpenID Connect (OIDC) single sign-on authentication" },
@@ -185,10 +189,7 @@ class SettingsService
     end
 
     def audiobookshelf_configured?
-      return false unless configured?(:audiobookshelf_url) && configured?(:audiobookshelf_api_key)
-      
-      # At least one library ID must be configured for scans to work
-      configured?(:audiobookshelf_audiobook_library_id) || configured?(:audiobookshelf_ebook_library_id)
+      configured?(:audiobookshelf_url) && configured?(:audiobookshelf_api_key)
     end
 
     def anna_archive_configured?
@@ -208,6 +209,21 @@ class SettingsService
 
     def hardcover_configured?
       configured?(:hardcover_api_token)
+    end
+
+    def api_token
+      setting = Setting.find_by(key: "api_token")
+      return nil unless setting
+
+      setting.typed_value.presence
+    end
+
+    def api_token_configured?
+      api_token.present?
+    end
+
+    def auth_disabled?
+      ENV["DISABLE_AUTH"]&.downcase == "true" || get(:auth_disabled, default: false)
     end
   end
 end

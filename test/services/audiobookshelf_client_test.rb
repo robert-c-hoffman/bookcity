@@ -14,25 +14,16 @@ class AudiobookshelfClientTest < ActiveSupport::TestCase
   end
 
   test "configured? returns true when properly configured" do
-    SettingsService.set(:audiobookshelf_audiobook_library_id, "lib-123")
     assert AudiobookshelfClient.configured?
   end
 
   test "configured? returns false when url is missing" do
-    SettingsService.set(:audiobookshelf_audiobook_library_id, "lib-123")
     SettingsService.set(:audiobookshelf_url, "")
     assert_not AudiobookshelfClient.configured?
   end
 
   test "configured? returns false when api_key is missing" do
-    SettingsService.set(:audiobookshelf_audiobook_library_id, "lib-123")
     SettingsService.set(:audiobookshelf_api_key, "")
-    assert_not AudiobookshelfClient.configured?
-  end
-
-  test "configured? returns false when no library IDs are set" do
-    SettingsService.set(:audiobookshelf_audiobook_library_id, "")
-    SettingsService.set(:audiobookshelf_ebook_library_id, "")
     assert_not AudiobookshelfClient.configured?
   end
 
@@ -111,6 +102,47 @@ class AudiobookshelfClientTest < ActiveSupport::TestCase
 
       result = AudiobookshelfClient.scan_library("lib-123")
       assert result
+    end
+  end
+
+  test "library_items returns parsed book items" do
+    VCR.turned_off do
+      stub_request(:get, "http://localhost:13378/api/libraries/lib-123/items?limit=500&page=1")
+        .with(headers: { "Authorization" => "Bearer test-api-key-12345" })
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            "results" => [
+              {
+                "id" => "ab-item-1",
+                "title" => "The Hobbit",
+                "media" => {
+                  "author" => "J.R.R. Tolkien"
+                }
+              },
+              {
+                "id" => "ab-item-2",
+                "media" => {
+                  "title" => "Good Omens",
+                  "metadata" => {
+                    "authors" => [ "Neil Gaiman", "Terry Pratchett" ]
+                  }
+                }
+              }
+            ],
+            "total" => 2
+          }.to_json
+        )
+
+      items = AudiobookshelfClient.library_items("lib-123", page_size: 500)
+
+      assert_equal 2, items.size
+      assert_equal "ab-item-1", items.first["audiobookshelf_id"]
+      assert_equal "The Hobbit", items.first["title"]
+      assert_equal "J.R.R. Tolkien", items.first["author"]
+      assert_equal "Good Omens", items.last["title"]
+      assert_equal "Neil Gaiman, Terry Pratchett", items.last["author"]
     end
   end
 

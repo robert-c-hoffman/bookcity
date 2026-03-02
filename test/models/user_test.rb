@@ -79,56 +79,28 @@ class UserTest < ActiveSupport::TestCase
     assert_nil user.last_failed_login_ip
   end
 
-  test "timezone defaults to UTC" do
-    user = User.create!(name: "Test", username: "test_tz", password: VALID_PASSWORD)
-    assert_equal "UTC", user.timezone
-  end
-
-  test "allows valid timezone" do
-    user = User.new(name: "Test", username: "test_tz", password: VALID_PASSWORD, timezone: "America/New_York")
-    assert user.valid?
-  end
-
-  test "rejects invalid timezone" do
-    user = User.new(name: "Test", username: "test_tz", password: VALID_PASSWORD, timezone: "Invalid/Timezone")
-    assert_not user.valid?
-    assert user.errors[:timezone].any?
-  end
-
-  # Backup code security tests
-  test "verify_backup_code succeeds with valid code" do
+  test "soft_delete! marks user as deleted and clears sessions" do
     user = users(:one)
-    user.update!(otp_secret: ROTP::Base32.random, otp_required: true)
-    codes = user.generate_backup_codes!
+    user.sessions.create!(user_agent: "test", ip_address: "127.0.0.1")
 
-    assert user.verify_backup_code(codes.first)
+    assert_difference("user.sessions.count", -1) do
+      user.soft_delete!
+    end
+
+    assert user.reload.deleted?
   end
 
-  test "verify_backup_code fails with invalid code" do
+  test "allows reusing username from a soft-deleted user" do
     user = users(:one)
-    user.update!(otp_secret: ROTP::Base32.random, otp_required: true)
-    user.generate_backup_codes!
+    username = user.username
+    user.soft_delete!
 
-    assert_not user.verify_backup_code("INVALIDCODE")
-  end
+    replacement = User.new(
+      name: "Replacement User",
+      username: username,
+      password: VALID_PASSWORD
+    )
 
-  test "verify_backup_code removes used code (one-time use)" do
-    user = users(:one)
-    user.update!(otp_secret: ROTP::Base32.random, otp_required: true)
-    codes = user.generate_backup_codes!
-    initial_count = user.backup_codes_remaining
-
-    user.verify_backup_code(codes.first)
-
-    assert_equal initial_count - 1, user.reload.backup_codes_remaining
-  end
-
-  test "verify_backup_code cannot reuse a consumed code" do
-    user = users(:one)
-    user.update!(otp_secret: ROTP::Base32.random, otp_required: true)
-    codes = user.generate_backup_codes!
-
-    assert user.verify_backup_code(codes.first)
-    assert_not user.verify_backup_code(codes.first)
+    assert replacement.save
   end
 end

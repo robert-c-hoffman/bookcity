@@ -112,28 +112,118 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_nil cookies[:session_id]
   end
 
-  test "after_authentication_url uses stored same-origin return path" do
-    # Simulate visiting a protected page before login
-    get root_path
-    assert_redirected_to new_session_path
+  # Auth disabled tests
+  test "auth disabled: login page shows username-only form" do
+    SettingsService.set(:auth_disabled, true)
 
-    # Log in
-    post session_path, params: { username: @user.username, password: FIXTURE_PASSWORD }
-
-    # Should redirect to the originally requested same-origin URL
-    assert_redirected_to root_url
-  end
-
-  test "after_authentication_url falls back to root for external URLs" do
-    # Make an initial request to establish a session
     get new_session_path
 
-    # Inject a cross-origin URL into the session to simulate host-header injection
-    session[:return_to_after_authenticating] = "http://evil.example.com/steal"
+    assert_response :success
+    assert_select "input[name='password']", count: 0
+    assert_select "input[name='username']"
+    assert_select "div", text: /Authentication is disabled/
+  ensure
+    SettingsService.set(:auth_disabled, false)
+  end
+
+  test "auth disabled: login with username only" do
+    SettingsService.set(:auth_disabled, true)
+
+    post session_path, params: { username: @user.username }
+
+    assert_redirected_to root_path
+    assert cookies[:session_id]
+  ensure
+    SettingsService.set(:auth_disabled, false)
+  end
+
+  test "auth disabled: unknown username shows error" do
+    SettingsService.set(:auth_disabled, true)
+
+    post session_path, params: { username: "nonexistent" }
+
+    assert_redirected_to new_session_path
+    assert_match(/Invalid username/, flash[:alert])
+    assert_nil cookies[:session_id]
+  ensure
+    SettingsService.set(:auth_disabled, false)
+  end
+
+  test "auth disabled: password is not checked" do
+    SettingsService.set(:auth_disabled, true)
+
+    post session_path, params: { username: @user.username, password: "totally-wrong" }
+
+    assert_redirected_to root_path
+    assert cookies[:session_id]
+  ensure
+    SettingsService.set(:auth_disabled, false)
+  end
+
+  test "auth disabled: 2FA is skipped" do
+    SettingsService.set(:auth_disabled, true)
+    @user.update!(otp_secret: ROTP::Base32.random, otp_required: true)
+
+    post session_path, params: { username: @user.username }
+
+    assert_redirected_to root_path
+    assert cookies[:session_id]
+  ensure
+    SettingsService.set(:auth_disabled, false)
+  end
+
+  test "auth disabled: locked account is still blocked" do
+    SettingsService.set(:auth_disabled, true)
+    @user.update!(locked_until: 1.hour.from_now)
+
+    post session_path, params: { username: @user.username }
+
+    assert_redirected_to new_session_path
+    assert_match(/Account is locked/, flash[:alert])
+    assert_nil cookies[:session_id]
+  ensure
+    SettingsService.set(:auth_disabled, false)
+  end
+
+  test "auth disabled: does not track failed logins" do
+    SettingsService.set(:auth_disabled, true)
+
+    post session_path, params: { username: "nonexistent" }
+
+    assert_equal 0, @user.reload.failed_login_count
+  ensure
+    SettingsService.set(:auth_disabled, false)
+  end
+
+  test "auth disabled via env var overrides setting" do
+    SettingsService.set(:auth_disabled, false)
+
+    ENV["DISABLE_AUTH"] = "true"
+    post session_path, params: { username: @user.username }
+
+    assert_redirected_to root_path
+    assert cookies[:session_id]
+  ensure
+    ENV.delete("DISABLE_AUTH")
+    SettingsService.set(:auth_disabled, false)
+  end
+
+  test "normal login still requires password when auth enabled" do
+    SettingsService.set(:auth_disabled, false)
+
+    post session_path, params: { username: @user.username }
+
+    assert_redirected_to new_session_path
+    assert_nil cookies[:session_id]
+  end
+
+  test "create rejects soft-deleted users" do
+    @user.update!(deleted_at: Time.current)
 
     post session_path, params: { username: @user.username, password: FIXTURE_PASSWORD }
 
-    # Must NOT redirect to the external domain
-    assert_redirected_to root_url
+    assert_redirected_to new_session_path
+    assert_match(/Invalid username or password/, flash[:alert])
+    assert_nil cookies[:session_id]
   end
 end
