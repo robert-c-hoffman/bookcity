@@ -54,6 +54,10 @@ module Admin
         HardcoverClient.reset_connection!
         run_service_health_check("hardcover")
       end
+      if changed_keys.any? { |k| k.start_with?("audible") }
+        AudibleClient.reset_connection!
+        run_service_health_check("audible")
+      end
       if changed_keys.any? { |k| k.start_with?("audiobook_output_path") || k.start_with?("ebook_output_path") }
         run_service_health_check_now("output_paths")
       end
@@ -221,6 +225,37 @@ module Admin
       respond_with_flash(alert: "Invalid OIDC discovery document (not valid JSON).")
     rescue StandardError => e
       respond_with_flash(alert: "OIDC test error: #{e.message}")
+    end
+
+    def test_audible
+      health = SystemHealth.for_service("audible")
+
+      unless AudibleClient.configured?
+        health.mark_not_configured!
+        respond_with_flash(alert: "Audible is not configured. Enable it and enter an access token first.")
+        return
+      end
+
+      if AudibleClient.test_connection
+        health.check_succeeded!(message: "Connection successful")
+        respond_with_flash(notice: "Audible connection successful!")
+      else
+        health.check_failed!(message: "Failed to connect to Audible")
+        respond_with_flash(alert: "Audible connection failed.")
+      end
+    rescue AudibleClient::Error => e
+      health&.check_failed!(message: e.message)
+      respond_with_flash(alert: "Audible error: #{e.message}")
+    end
+
+    def sync_audible_wishlist
+      unless AudibleClient.configured?
+        redirect_to admin_settings_path, alert: "Audible is not configured. Enable it and enter an access token first."
+        return
+      end
+
+      AudibleWishlistSyncJob.perform_later
+      redirect_to admin_settings_path, notice: "Audible wishlist sync started."
     end
 
     private

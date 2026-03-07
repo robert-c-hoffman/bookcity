@@ -75,6 +75,12 @@ class SettingsService
     metadata_source: { type: "string", default: "auto", category: "hardcover", description: "Primary metadata source: auto (Hardcover first, OpenLibrary fallback), hardcover, or openlibrary" },
     hardcover_search_limit: { type: "integer", default: 10, category: "hardcover", description: "Maximum number of search results from Hardcover" },
 
+    # Audible Wishlist Integration
+    audible_enabled: { type: "boolean", default: false, category: "audible", description: "Enable Audible wishlist sync to automatically request audiobooks added to your Audible wishlist" },
+    audible_access_token: { type: "string", default: "", category: "audible", description: "Audible access token (Bearer token) for API authentication. Obtain from your Audible session via browser developer tools or the audible-cli tool." },
+    audible_country_code: { type: "string", default: "us", category: "audible", description: "Audible marketplace country code: us, uk, de, fr, ca, au, in, jp, it, or es" },
+    audible_wishlist_sync_interval: { type: "integer", default: 3600, category: "audible", description: "Seconds between Audible wishlist sync checks (default: 3600 = 1 hour)" },
+
     # OIDC/SSO Authentication
     oidc_enabled: { type: "boolean", default: false, category: "oidc", description: "Enable OpenID Connect (OIDC) single sign-on authentication" },
     oidc_provider_name: { type: "string", default: "SSO", category: "oidc", description: "Display name for the OIDC provider (shown on login button)" },
@@ -90,6 +96,7 @@ class SettingsService
     "prowlarr" => "Prowlarr",
     "download" => "Download Settings",
     "audiobookshelf" => "Audiobookshelf",
+    "audible" => "Audible Wishlist",
     "anna_archive" => "Anna's Archive",
     "hardcover" => "Hardcover",
     "paths" => "Output Paths",
@@ -198,6 +205,10 @@ class SettingsService
 
     def flaresolverr_configured?
       configured?(:flaresolverr_url)
+    end
+
+    def audible_configured?
+      get(:audible_enabled, default: false) && configured?(:audible_access_token)
     end
 
     def oidc_configured?

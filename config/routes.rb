@@ -89,6 +89,8 @@ Rails.application.routes.draw do
         post :test_flaresolverr
         post :test_hardcover
         post :test_oidc
+        post :test_audible
+        post :sync_audible_wishlist
       end
     end
     resource :bulk_operations, only: [] do
