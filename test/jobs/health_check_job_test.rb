@@ -7,6 +7,7 @@ class HealthCheckJobTest < ActiveJob::TestCase
     SystemHealth.destroy_all
     DownloadClient.destroy_all
     Thread.current[:qbittorrent_sessions] = {}
+    AudibleClient.reset_connection!
   end
 
   test "schedules next run after checking" do
@@ -394,6 +395,50 @@ class HealthCheckJobTest < ActiveJob::TestCase
     end
   end
 
+  # Audible tests
+  test "marks audible as not_configured when not configured" do
+    Setting.where(key: %w[audible_enabled audible_access_token]).destroy_all
+
+    HealthCheckJob.perform_now
+
+    health = SystemHealth.for_service("audible")
+    assert health.not_configured?
+    assert_includes health.message, "Not configured"
+  end
+
+  test "marks audible as healthy when configured and connected" do
+    setup_audible_settings
+
+    VCR.turned_off do
+      stub_request(:get, "https://api.audible.com/1.0/wishlist")
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { "products" => [] }.to_json
+        )
+
+      HealthCheckJob.perform_now
+
+      health = SystemHealth.for_service("audible")
+      assert health.healthy?
+      assert_includes health.message, "successful"
+    end
+  end
+
+  test "marks audible as down when authentication fails" do
+    setup_audible_settings
+
+    VCR.turned_off do
+      stub_request(:get, "https://api.audible.com/1.0/wishlist")
+        .to_return(status: 401)
+
+      HealthCheckJob.perform_now
+
+      health = SystemHealth.for_service("audible")
+      assert health.down?
+    end
+  end
+
   private
 
   def create_download_client(name: "Test Client", url: "http://localhost:8080")
@@ -452,6 +497,25 @@ class HealthCheckJobTest < ActiveJob::TestCase
       value: local_path,
       value_type: "string",
       category: "paths"
+    )
+  end
+
+  def setup_audible_settings
+    AudibleClient.reset_connection!
+    Setting.find_or_create_by(key: "audible_enabled").update!(
+      value: "true",
+      value_type: "boolean",
+      category: "audible"
+    )
+    Setting.find_or_create_by(key: "audible_access_token").update!(
+      value: "test-audible-token",
+      value_type: "string",
+      category: "audible"
+    )
+    Setting.find_or_create_by(key: "audible_country_code").update!(
+      value: "us",
+      value_type: "string",
+      category: "audible"
     )
   end
 

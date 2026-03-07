@@ -14,6 +14,7 @@ class HealthCheckJob < ApplicationJob
       check_output_paths
       check_audiobookshelf
       check_hardcover
+      check_audible
       schedule_next_run
     end
   end
@@ -28,6 +29,7 @@ class HealthCheckJob < ApplicationJob
     when "output_paths" then check_output_paths
     when "audiobookshelf" then check_audiobookshelf
     when "hardcover" then check_hardcover
+    when "audible" then check_audible
     else
       Rails.logger.warn "[HealthCheckJob] Unknown service: #{service}"
     end
@@ -220,6 +222,28 @@ class HealthCheckJob < ApplicationJob
   rescue => e
     health.check_failed!(message: "Error: #{e.message}")
     Rails.logger.error "[HealthCheckJob] Hardcover check failed: #{e.message}"
+  end
+
+  def check_audible
+    health = SystemHealth.for_service("audible")
+
+    unless AudibleClient.configured?
+      health.mark_not_configured!
+      return
+    end
+
+    if AudibleClient.test_connection
+      health.check_succeeded!(message: "Connection successful")
+    else
+      health.check_failed!(message: "Failed to connect to Audible")
+    end
+  rescue AudibleClient::AuthenticationError => e
+    health.check_failed!(message: "Authentication failed: #{e.message}")
+  rescue AudibleClient::ConnectionError => e
+    health.check_failed!(message: "Connection error: #{e.message}")
+  rescue => e
+    health.check_failed!(message: "Error: #{e.message}")
+    Rails.logger.error "[HealthCheckJob] Audible check failed: #{e.message}"
   end
 
   def schedule_next_run
