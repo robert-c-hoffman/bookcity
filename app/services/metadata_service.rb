@@ -146,8 +146,8 @@ class MetadataService
         description: truncate_description(result.description),
         year: result.release_year,
         cover_url: result.cover_url,
-        has_audiobook: result.has_audiobook,
-        has_ebook: result.has_ebook,
+        has_audiobook: result.has_audiobook.nil? ? false : result.has_audiobook,
+        has_ebook: result.has_ebook.nil? ? false : result.has_ebook,
         series_name: nil
       )
     end
@@ -176,8 +176,8 @@ class MetadataService
         description: details.description,
         year: details.release_year,
         cover_url: details.cover_url,
-        has_audiobook: details.has_audiobook,
-        has_ebook: details.has_ebook,
+        has_audiobook: details.has_audiobook.nil? ? false : details.has_audiobook,
+        has_ebook: details.has_ebook.nil? ? false : details.has_ebook,
         series_name: details.series_name
       )
     end

@@ -111,7 +111,7 @@ class MetadataServiceTest < ActiveSupport::TestCase
     end
   end
 
-  test "hardcover search preserves nil has_audiobook and has_ebook when absent from API response" do
+  test "hardcover search defaults nil has_audiobook and has_ebook to false when absent from API response" do
     SettingsService.set(:metadata_source, "hardcover")
     SettingsService.set(:hardcover_api_token, "test_token")
 
@@ -125,8 +125,68 @@ class MetadataServiceTest < ActiveSupport::TestCase
 
       assert results.any?
       result = results.first
-      assert_nil result.has_audiobook, "has_audiobook should be nil (not false) when absent from Hardcover API"
-      assert_nil result.has_ebook, "has_ebook should be nil (not false) when absent from Hardcover API"
+      assert_equal false, result.has_audiobook, "has_audiobook should default to false when absent from Hardcover API"
+      assert_equal false, result.has_ebook, "has_ebook should default to false when absent from Hardcover API"
+    end
+  end
+
+  test "hardcover search preserves true has_audiobook and has_ebook from API response" do
+    SettingsService.set(:metadata_source, "hardcover")
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      stub_hardcover_search([
+        { "id" => 123, "title" => "Known Formats", "author_names" => [ "Author" ],
+          "release_year" => 2020, "cached_image" => nil,
+          "has_audiobook" => true, "has_ebook" => true }
+      ])
+
+      results = MetadataService.search("known formats")
+
+      assert results.any?
+      result = results.first
+      assert_equal true, result.has_audiobook, "has_audiobook should be true when API returns true"
+      assert_equal true, result.has_ebook, "has_ebook should be true when API returns true"
+    end
+  end
+
+  test "hardcover search preserves false has_audiobook and has_ebook from API response" do
+    SettingsService.set(:metadata_source, "hardcover")
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      stub_hardcover_search([
+        { "id" => 456, "title" => "No Formats", "author_names" => [ "Author" ],
+          "release_year" => 2021, "cached_image" => nil,
+          "has_audiobook" => false, "has_ebook" => false }
+      ])
+
+      results = MetadataService.search("no formats")
+
+      assert results.any?
+      result = results.first
+      assert_equal false, result.has_audiobook, "has_audiobook should be false when API explicitly returns false"
+      assert_equal false, result.has_ebook, "has_ebook should be false when API explicitly returns false"
+    end
+  end
+
+  test "hardcover search handles mixed nil and explicit values for has_audiobook and has_ebook" do
+    SettingsService.set(:metadata_source, "hardcover")
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      stub_hardcover_search([
+        { "id" => 789, "title" => "Mixed Formats", "author_names" => [ "Author" ],
+          "release_year" => 2022, "cached_image" => nil,
+          "has_audiobook" => true, "has_ebook" => nil }
+      ])
+
+      results = MetadataService.search("mixed formats")
+
+      assert results.any?
+      result = results.first
+      assert_equal true, result.has_audiobook, "has_audiobook should be true when API returns true"
+      assert_equal false, result.has_ebook, "has_ebook should default to false when API returns nil"
     end
   end
 

@@ -137,7 +137,16 @@
             <% elsif audiobook_status == :requested || ebook_status == :requested %>
               Request pending
             <% else %>
-              No formats available
+              <p class="text-xs text-gray-400 mb-2">No detectable formats — you can still request</p>
+              <%= link_to new_request_path(
+                work_id: result.work_id,
+                title: result.title,
+                author: result.author,
+                cover_url: result.cover_url,
+                first_publish_year: result.first_publish_year
+              ), class: "flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md text-sm font-medium bg-gray-600 hover:bg-gray-500 text-white transition-colors" do %>
+                Request Anyway
+              <% end %>
             <% end %>
           </div>
         <% end %>
