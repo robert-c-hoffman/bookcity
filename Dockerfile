@@ -46,6 +46,9 @@ RUN bundle install && \
 # Copy application code
 COPY . .
 
+# Ensure bin scripts have Unix line endings (LF) and are executable
+RUN find bin -type f -exec sed -i 's/\r$//' {} + && find bin -type f -exec chmod +x {} +
+
 # Inject version from build arg (set by CI when building from a tag)
 ARG APP_VERSION=""
 RUN if [ -n "$APP_VERSION" ]; then echo "$APP_VERSION" > VERSION; fi
