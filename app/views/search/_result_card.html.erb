@@ -93,8 +93,12 @@
     <%# Hover Overlay %>
     <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
       <%# Request Buttons %>
+      <%
+        show_audiobook_button = audiobook_status == :available && result.has_audiobook != false
+        show_ebook_button = ebook_status == :available && result.has_ebook != false
+      %>
       <div class="flex flex-col gap-2">
-        <% if audiobook_status == :available %>
+        <% if show_audiobook_button %>
           <%= link_to new_request_path(
             work_id: result.work_id,
             title: result.title,
@@ -110,7 +114,7 @@
           <% end %>
         <% end %>
 
-        <% if ebook_status == :available %>
+        <% if show_ebook_button %>
           <%= link_to new_request_path(
             work_id: result.work_id,
             title: result.title,
@@ -126,12 +130,14 @@
           <% end %>
         <% end %>
 
-        <% if audiobook_status != :available && ebook_status != :available %>
+        <% unless show_audiobook_button || show_ebook_button %>
           <div class="text-center text-sm text-gray-300 py-2">
             <% if audiobook_status == :acquired || ebook_status == :acquired %>
               Already in library
-            <% else %>
+            <% elsif audiobook_status == :requested || ebook_status == :requested %>
               Request pending
+            <% else %>
+              No formats available
             <% end %>
           </div>
         <% end %>
