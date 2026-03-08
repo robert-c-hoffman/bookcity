@@ -111,6 +111,37 @@ class MetadataServiceTest < ActiveSupport::TestCase
     end
   end
 
+  test "hardcover search preserves nil has_audiobook and has_ebook when absent from API response" do
+    SettingsService.set(:metadata_source, "hardcover")
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      stub_hardcover_search([
+        { "id" => 999, "title" => "Covenant's End", "author_names" => [ "Erin M. Evans" ],
+          "release_year" => 2015, "cached_image" => nil }
+      ])
+
+      results = MetadataService.search("covenant's end")
+
+      assert results.any?
+      result = results.first
+      assert_nil result.has_audiobook, "has_audiobook should be nil (not false) when absent from Hardcover API"
+      assert_nil result.has_ebook, "has_ebook should be nil (not false) when absent from Hardcover API"
+    end
+  end
+
+  test "openlibrary search returns nil has_audiobook and has_ebook" do
+    SettingsService.set(:metadata_source, "openlibrary")
+
+    with_cassette("open_library/search_harry_potter") do
+      results = MetadataService.search("harry potter")
+
+      assert results.any?
+      assert_nil results.first.has_audiobook
+      assert_nil results.first.has_ebook
+    end
+  end
+
   test "SearchResult has unified interface" do
     result = MetadataService::SearchResult.new(
       source: "hardcover",

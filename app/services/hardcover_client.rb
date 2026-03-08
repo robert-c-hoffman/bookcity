@@ -216,8 +216,8 @@ class HardcoverClient
         description: doc["description"],
         release_year: doc["release_year"],
         cover_url: extract_cover_url(doc),
-        has_audiobook: doc["has_audiobook"] || false,
-        has_ebook: doc["has_ebook"] || false
+        has_audiobook: doc["has_audiobook"],
+        has_ebook: doc["has_ebook"]
       )
     end
 

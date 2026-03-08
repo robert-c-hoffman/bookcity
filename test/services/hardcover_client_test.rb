@@ -56,6 +56,43 @@ class HardcoverClientTest < ActiveSupport::TestCase
     end
   end
 
+  test "search preserves nil for has_audiobook and has_ebook when absent from response" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      stub_hardcover_search("covenant's end", [
+        { "id" => 999, "title" => "Covenant's End", "author_names" => [ "Erin M. Evans" ],
+          "release_year" => 2015, "cached_image" => nil }
+      ])
+
+      results = HardcoverClient.search("covenant's end")
+
+      assert_equal 1, results.size
+      result = results.first
+      assert_nil result.has_audiobook, "has_audiobook should be nil when absent from API response"
+      assert_nil result.has_ebook, "has_ebook should be nil when absent from API response"
+    end
+  end
+
+  test "search preserves false for has_audiobook and has_ebook when explicitly false" do
+    SettingsService.set(:hardcover_api_token, "test_token")
+
+    VCR.turned_off do
+      stub_hardcover_search("text only book", [
+        { "id" => 777, "title" => "Text Only Book", "author_names" => [ "Some Author" ],
+          "release_year" => 2020, "cached_image" => nil,
+          "has_audiobook" => false, "has_ebook" => false }
+      ])
+
+      results = HardcoverClient.search("text only book")
+
+      assert_equal 1, results.size
+      result = results.first
+      assert_equal false, result.has_audiobook
+      assert_equal false, result.has_ebook
+    end
+  end
+
   test "search handles empty results" do
     SettingsService.set(:hardcover_api_token, "test_token")
 
