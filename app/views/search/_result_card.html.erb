@@ -90,8 +90,8 @@
       </span>
     <% end %>
 
-    <%# Hover Overlay %>
-    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
+    <%# Hover Overlay — always visible on mobile (touch devices can't hover) %>
+    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
       <%# Request Buttons %>
       <%
         show_audiobook_button = audiobook_status == :available && result.has_audiobook != false
