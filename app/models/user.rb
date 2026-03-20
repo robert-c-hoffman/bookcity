@@ -140,6 +140,26 @@ class User < ApplicationRecord
     backup_codes.split(",").count
   end
 
+  # Reset password using the master password stored in MASTER_PASSWORD env var
+  def self.reset_password_with_master!(user, master_password, new_password, new_password_confirmation)
+    stored_master = ENV["MASTER_PASSWORD"]
+    if stored_master.blank?
+      Rails.logger.warn "[Security] Master password reset attempted but MASTER_PASSWORD env var is not set"
+      return false
+    end
+
+    unless ActiveSupport::SecurityUtils.secure_compare(master_password.to_s, stored_master)
+      Rails.logger.warn "[Security] Master password reset failed: invalid master password for user '#{user.username}'"
+      return false
+    end
+
+    result = user.update(password: new_password, password_confirmation: new_password_confirmation)
+    if result
+      Rails.logger.info "[Security] Master password reset succeeded for user '#{user.username}'"
+    end
+    result
+  end
+
   # Soft delete
   def soft_delete!
     transaction do

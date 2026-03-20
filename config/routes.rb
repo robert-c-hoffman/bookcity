@@ -67,7 +67,12 @@ Rails.application.routes.draw do
     root "dashboard#index"
     post "check_updates", to: "dashboard#check_updates"
     post "run_health_check", to: "dashboard#run_health_check"
-    resources :users
+    resources :users do
+      member do
+        get :master_password_reset
+        patch :perform_master_password_reset
+      end
+    end
     resources :uploads, only: [ :index, :new, :create, :show, :destroy ] do
       member do
         post :retry
