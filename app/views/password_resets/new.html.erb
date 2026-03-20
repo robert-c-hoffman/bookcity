@@ -1,0 +1,41 @@
+<div class="mx-auto md:w-2/3 w-full">
+  <div class="mb-8">
+    <h1 class="font-bold text-4xl text-white">Admin Reset Password</h1>
+    <p class="mt-2 text-gray-400">Reset an account password using the administrator master password.</p>
+  </div>
+
+  <% if flash[:alert] %>
+    <div class="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 font-medium rounded-lg mb-6">
+      <%= flash[:alert] %>
+    </div>
+  <% end %>
+
+  <%= form_with url: password_reset_path, method: :post, class: "contents" do |form| %>
+    <div class="my-5">
+      <%= form.label :username, "Username", class: "block text-gray-300 font-medium" %>
+      <%= form.text_field :username, required: true, autocomplete: "username", placeholder: "Enter the account username", value: params[:username], class: "block rounded-lg border border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 px-4 py-3 mt-2 w-full" %>
+    </div>
+
+    <div class="my-5">
+      <%= form.label :master_password, "Master Password", class: "block text-gray-300 font-medium" %>
+      <%= form.password_field :master_password, required: true, autocomplete: "off", class: "block rounded-lg border border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 px-4 py-3 mt-2 w-full" %>
+      <p class="mt-1 text-sm text-gray-500">The administrator master password configured for this server.</p>
+    </div>
+
+    <div class="my-5">
+      <%= form.label :new_password, "New Password", class: "block text-gray-300 font-medium" %>
+      <%= form.password_field :new_password, required: true, minlength: 12, autocomplete: "new-password", pattern: "(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{12,}", title: "Minimum 12 characters with at least one uppercase letter, one lowercase letter, and one number", class: "block rounded-lg border border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 px-4 py-3 mt-2 w-full" %>
+      <p class="mt-1 text-sm text-gray-500">Minimum 12 characters with uppercase, lowercase, and number.</p>
+    </div>
+
+    <div class="my-5">
+      <%= form.label :new_password_confirmation, "Confirm New Password", class: "block text-gray-300 font-medium" %>
+      <%= form.password_field :new_password_confirmation, required: true, autocomplete: "new-password", class: "block rounded-lg border border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 px-4 py-3 mt-2 w-full" %>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <%= form.submit "Reset Password", class: "w-full sm:w-auto text-center rounded-lg px-5 py-3 bg-red-600 hover:bg-red-500 text-white inline-block font-medium cursor-pointer transition" %>
+      <%= link_to "Back to Sign In", new_session_path, class: "text-gray-400 hover:text-gray-300 transition" %>
+    </div>
+  <% end %>
+</div>
