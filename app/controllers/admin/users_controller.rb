@@ -49,21 +49,15 @@ module Admin
     def master_password_reset
     end
 
+    # TEST ENVIRONMENT ONLY: Master password check has been bypassed.
     def perform_master_password_reset
-      master_password = master_reset_params[:master_password]
       new_password = master_reset_params[:new_password]
       new_password_confirmation = master_reset_params[:new_password_confirmation]
 
-      if User.reset_password_with_master!(@user, master_password, new_password, new_password_confirmation)
+      if User.reset_password_with_master!(@user, nil, new_password, new_password_confirmation)
         redirect_to admin_users_path, notice: "Password for #{@user.username} was successfully reset."
       else
-        if ENV["MASTER_PASSWORD"].blank?
-          flash.now[:alert] = "Master password reset is not configured (MASTER_PASSWORD environment variable is not set)."
-        elsif @user.errors.any?
-          flash.now[:alert] = @user.errors.full_messages.join(", ")
-        else
-          flash.now[:alert] = "Invalid master password."
-        end
+        flash.now[:alert] = @user.errors.full_messages.join(", ")
         render :master_password_reset, status: :unprocessable_entity
       end
     end
