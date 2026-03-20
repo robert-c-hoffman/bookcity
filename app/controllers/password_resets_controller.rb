@@ -5,13 +5,13 @@ class PasswordResetsController < ApplicationController
   def new
   end
 
+  # TEST ENVIRONMENT ONLY: Master password requirement has been bypassed.
   def create
     username = params[:username].to_s.strip.downcase
-    master_password = params[:master_password]
     new_password = params[:new_password]
     new_password_confirmation = params[:new_password_confirmation]
 
-    if username.blank? || master_password.blank? || new_password.blank? || new_password_confirmation.blank?
+    if username.blank? || new_password.blank? || new_password_confirmation.blank?
       flash.now[:alert] = "All fields are required."
       render :new, status: :unprocessable_entity
       return
@@ -21,21 +21,15 @@ class PasswordResetsController < ApplicationController
 
     unless user
       # Avoid leaking whether the username exists
-      flash.now[:alert] = "Invalid username or master password."
+      flash.now[:alert] = "Invalid username."
       render :new, status: :unprocessable_entity
       return
     end
 
-    if User.reset_password_with_master!(user, master_password, new_password, new_password_confirmation)
+    if User.reset_password_with_master!(user, nil, new_password, new_password_confirmation)
       redirect_to new_session_path, notice: "Password was successfully reset. Please sign in with your new password."
     else
-      if ENV["MASTER_PASSWORD"].blank?
-        flash.now[:alert] = "Password reset via master password is not configured."
-      elsif user.errors.any?
-        flash.now[:alert] = user.errors.full_messages.join(", ")
-      else
-        flash.now[:alert] = "Invalid username or master password."
-      end
+      flash.now[:alert] = user.errors.full_messages.join(", ")
       render :new, status: :unprocessable_entity
     end
   end

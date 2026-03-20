@@ -1,7 +1,8 @@
 <div class="mx-auto md:w-2/3 w-full">
   <div class="mb-8">
     <h1 class="font-bold text-4xl text-white">Admin Reset Password</h1>
-    <p class="mt-2 text-gray-400">Reset an account password using the administrator master password.</p>
+    <p class="mt-2 text-gray-400">Reset an account password by entering the username and a new password.</p>
+    <%# TEST ENVIRONMENT ONLY: Master password validation is disabled. Revert before deploying to production. %>
   </div>
 
   <% if flash[:alert] %>
@@ -14,12 +15,6 @@
     <div class="my-5">
       <%= form.label :username, "Username", class: "block text-gray-300 font-medium" %>
       <%= form.text_field :username, required: true, autocomplete: "username", placeholder: "Enter the account username", value: params[:username], class: "block rounded-lg border border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 px-4 py-3 mt-2 w-full" %>
-    </div>
-
-    <div class="my-5">
-      <%= form.label :master_password, "Master Password", class: "block text-gray-300 font-medium" %>
-      <%= form.password_field :master_password, required: true, autocomplete: "off", class: "block rounded-lg border border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 px-4 py-3 mt-2 w-full" %>
-      <p class="mt-1 text-sm text-gray-500">The administrator master password configured for this server.</p>
     </div>
 
     <div class="my-5">

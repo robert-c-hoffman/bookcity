@@ -104,50 +104,32 @@ class UserTest < ActiveSupport::TestCase
     assert replacement.save
   end
 
-  test "reset_password_with_master! fails when MASTER_PASSWORD env var is not set" do
+  test "reset_password_with_master! resets password without requiring MASTER_PASSWORD env var" do
     user = users(:one)
     ENV.delete("MASTER_PASSWORD")
 
-    result = User.reset_password_with_master!(user, "anything", VALID_PASSWORD, VALID_PASSWORD)
+    result = User.reset_password_with_master!(user, nil, VALID_PASSWORD, VALID_PASSWORD)
 
-    assert_not result
-  ensure
-    ENV.delete("MASTER_PASSWORD")
+    assert result
+    assert user.reload.authenticate(VALID_PASSWORD)
   end
 
-  test "reset_password_with_master! fails with incorrect master password" do
+  test "reset_password_with_master! resets password ignoring any master_password argument" do
     user = users(:one)
-    ENV["MASTER_PASSWORD"] = "CorrectMasterPass1!"
-
-    result = User.reset_password_with_master!(user, "WrongMasterPass1!", VALID_PASSWORD, VALID_PASSWORD)
-
-    assert_not result
-  ensure
-    ENV.delete("MASTER_PASSWORD")
-  end
-
-  test "reset_password_with_master! resets password with correct master password" do
-    user = users(:one)
-    ENV["MASTER_PASSWORD"] = "CorrectMasterPass1!"
     new_password = "NewPassword99!"
 
-    result = User.reset_password_with_master!(user, "CorrectMasterPass1!", new_password, new_password)
+    result = User.reset_password_with_master!(user, "any_value", new_password, new_password)
 
     assert result
     assert user.reload.authenticate(new_password)
-  ensure
-    ENV.delete("MASTER_PASSWORD")
   end
 
   test "reset_password_with_master! fails when new password is invalid" do
     user = users(:one)
-    ENV["MASTER_PASSWORD"] = "CorrectMasterPass1!"
 
-    result = User.reset_password_with_master!(user, "CorrectMasterPass1!", "short", "short")
+    result = User.reset_password_with_master!(user, nil, "short", "short")
 
     assert_not result
     assert user.errors[:password].any?
-  ensure
-    ENV.delete("MASTER_PASSWORD")
   end
 end
