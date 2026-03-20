@@ -7,6 +7,10 @@ Rails.application.routes.draw do
   get "sign_up", to: "registrations#new", as: :sign_up
   post "sign_up", to: "registrations#create"
 
+  # Password reset via master password (unauthenticated)
+  get "password_reset", to: "password_resets#new", as: :new_password_reset
+  post "password_reset", to: "password_resets#create", as: :password_reset
+
   # OIDC/SSO Authentication (OmniAuth callbacks)
   get "auth/oidc/callback", to: "auth/omniauth_callbacks#oidc"
   get "auth/failure", to: "auth/omniauth_callbacks#failure"
